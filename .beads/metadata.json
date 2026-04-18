@@ -1,0 +1,10 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_server_host": "127.0.0.1",
+  "dolt_server_port": 3308,
+  "dolt_server_user": "root",
+  "dolt_database": "maya_travel_app",
+  "project_id": "8134bd3a-0182-4dbc-97cc-6108bc9bcfa0"
+}
