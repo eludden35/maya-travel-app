@@ -1,0 +1,46 @@
+---
+description: Non-negotiable Supabase security patterns (RLS, service role, secrets, webhook idempotency).
+globs: supabase/migrations/**/*.sql, **/supabase/**/*.ts, **/supabase/**/*.tsx
+alwaysApply: false
+---
+
+# Supabase security
+
+## RLS is on, by default
+
+- Every new user-facing table **enables RLS in the same migration that creates it**.
+- Policies must be **tight**. Reject `USING (true)` / `WITH CHECK (true)` on user data in production.
+- Prefer `auth.uid() = user_id` (or membership-based) policies; document why a policy is broad if it must be.
+- Index every column you filter by in a policy (`user_id`, `trip_id`, etc.) to keep RLS-protected queries cheap.
+
+## Service role and keys
+
+- The **`SUPABASE_SERVICE_ROLE_KEY`** is **server-side only**. It must **never** be:
+  - imported by a `"use client"` module,
+  - exposed via `NEXT_PUBLIC_*` (or any client-bundled env),
+  - referenced in code reachable from the browser bundle.
+- Browser code uses the **anon key** + the user's session only.
+
+```ts
+// BAD — leaks service role into client bundle
+"use client";
+import { createClient } from "@supabase/supabase-js";
+const supabase = createClient(URL, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+
+// GOOD — server-only module (route handler / server action / edge function)
+import { createClient } from "@supabase/supabase-js";
+export const adminClient = createClient(URL, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+```
+
+## Webhook handlers
+
+- Webhooks (Stripe, etc.) **must be idempotent**: dedupe on the provider's idempotency key with a unique index or a dedicated `processed_events` table.
+- **Verify the signature** before reading the body. Reject unsigned or stale events.
+- Never log raw webhook bodies that may contain secrets or PII.
+
+## Migrations
+
+- Migrations are the source of truth for schema. **No ad-hoc dashboard changes** in production.
+- Generate types after schema changes (`supabase gen types …`) and commit them.
+
+For deeper Supabase patterns, load the workspace **Supabase skill** and the `project-supabase` skill.

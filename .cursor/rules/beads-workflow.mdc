@@ -1,0 +1,36 @@
+---
+description: Use Beads (bd) as the canonical durable issue tracker; tasks/todo.md is the only blessed session scratchpad.
+alwaysApply: true
+---
+
+# Beads (`bd`) workflow
+
+**Beads (`bd`)** is the **canonical durable issue tracker** for this repo. Issues live in the `.beads/` Dolt store and are git-backed.
+
+## Daily commands
+
+- `bd ready` — surface unblocked work (great at session start).
+- `bd list --json` / `bd show <id> --json` — list / inspect; **prefer `--json`** for any scripted or agent use.
+- `bd create … --json` — file new work; include deps (`--blocks`, `--parent`, `--discovered-from`) so the dependency graph stays honest.
+- `bd update <id> …` — change state, priority, assignee, body.
+- `bd close <id>` — close when evidence of completion exists.
+
+When you discover follow-up work mid-task, **`bd create`** it with `--discovered-from <current-id>` instead of leaving a free-floating `TODO` comment in code.
+
+## Server lifecycle
+
+This repo uses Beads in **Dolt server mode** (npm-installed `bd` binary lacks CGO). If `bd` commands fail to connect, run **`bd dolt start`** once per machine session to bring up the local Dolt sql-server (port pinned in `.beads/dolt-server.port`). See the `project-beads` skill for the full conventions.
+
+## Do **not** create a root `TODO.md`
+
+The **only** blessed markdown task surface is **`tasks/todo.md`** (session-scoped scratchpad). It holds the checkable plan / progress / review for the **current implementation chunk** and links the active **Bead ID** at the top when applicable. Durable tracking lives in **`bd` only**.
+
+## Beads vs `tasks/todo.md`
+
+- **`bd`** = durable **issue graph** (deps, status, history).
+- **`tasks/todo.md`** = **session execution transcript** for the work right now.
+- **Link** bead ↔ session plan; do **not** maintain two competing backlogs.
+
+## Commits (optional)
+
+When a commit closes a Bead, reference the ID in the commit body (e.g. `Closes <prefix>-abc123`). Do not require it.

@@ -1,0 +1,46 @@
+---
+description: Mandatory code-review checklist when touching TS/TSX.
+globs: **/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Code review checklist — TS/TSX
+
+Before declaring a TS/TSX change done, walk this list. It is the **gate**; deeper review guidance lives in the `project-code-review` skill.
+
+## Types and errors
+
+- No silent `any`/`unknown` on data crossing trust boundaries (DB rows, API payloads, user input).
+- Errors are **handled honestly**: caught, contextualized, and surfaced — not swallowed.
+- Async paths handle rejection.
+
+## Secrets and trust boundaries
+
+- No `SUPABASE_SERVICE_ROLE_KEY` (or any server secret) reachable from a `"use client"` module or otherwise bundled into the browser.
+- No `NEXT_PUBLIC_*` (or equivalent) holding secret values.
+
+## User-facing states
+
+- Loading, empty, error, and permission-denied states exist for any flow a user can sit on.
+- Forms show inline validation; submit buttons reflect pending state.
+
+## Accessibility
+
+- Every form control has a label (visible or `aria-label`).
+- Focus order is sensible; visible focus rings preserved.
+- Semantic elements over `<div onClick>` (use `<button>`, `<a>`, real form elements).
+- Color is not the only carrier of meaning.
+
+## Visual changes (creative-design coexistence)
+
+- Contrast and readability not regressed by "creative" styling.
+- Focus state still visible after restyling.
+- Tap targets ≥ ~44×44 CSS px (see `mobile-web-ui.mdc`).
+
+## Performance foot-guns
+
+- No N+1 fetches in render paths.
+- No large libraries pulled into client bundles for trivial use.
+- Lists that can grow unbounded have pagination or virtualization plans.
+
+If any item fails, **fix it now or file a Bead** — do not mark the change done.

@@ -1,0 +1,48 @@
+---
+description: Plan-first workflow, subagent strategy, verification, elegance, autonomous bug fixing, and self-improvement loop.
+alwaysApply: true
+---
+
+# Project workflow
+
+## Plan first
+
+- Use **Cursor Plan mode** for any **non-trivial** task: **3+ steps**, or **architecture / security / data-model** decisions, or ambiguous specs.
+- Plans are also for **verification design**, not just building — describe how you will know the work is correct.
+- **Stay in Plan mode until the user explicitly says to execute.**
+- If execution goes sideways, **stop and re-plan** instead of patching blindly.
+
+## Subagents / Task tool
+
+- Offload **research, repo exploration, parallel analysis** to delegated agents so the main thread stays clean.
+- **One clear objective per delegated run.** Prefer multiple parallel passes over one overloaded thread for hard problems.
+
+## Proof before "done"
+
+- Never mark work complete without **evidence**: typecheck, targeted tests, command output, manual repro, screenshot for UI.
+- Compare behavior vs baseline when relevant.
+- **Staff-engineer bar:** would this ship without embarrassment?
+
+## Demand elegance (balanced)
+
+- For **non-trivial** edits, pause once and ask: "is there a cleaner shape now that I know more?"
+- If the fix feels hacky, prefer the **elegant end state** over a band-aid.
+- **Skip** for obvious one-liners — do not gold-plate.
+
+## Bugs and CI
+
+- On bug reports: **repro → logs / failing tests → fix → verify CI** with minimal back-and-forth.
+- **Fix failing CI when you see it** without waiting for explicit instruction.
+
+## Corrections → lessons
+
+- On any **user correction**, append a dated pattern + resolution to **`tasks/lessons.md`**.
+- If a mistake repeats, **tighten a `.cursor/rules/*.mdc` rule or `.cursor/skills/*/SKILL.md` skill** so it gets harder to recur.
+
+## Core principles
+
+- **Simplicity first:** smallest change that solves the problem.
+- **Root causes over band-aids:** no "temporary" hacks as the final state.
+- **Minimal blast radius:** touch only what is necessary.
+
+See the **`project-orchestration`** skill for the full `tasks/todo.md` ritual (plan / verify-plan / track / explain / review / lessons).

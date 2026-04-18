@@ -4,8 +4,9 @@ Single entry point for humans and AI agents working in this repo.
 
 ## Product
 
-- **Public product name: TBD.** The repo folder is `maya-travel-app` (filesystem convenience) and `package.json#name` may mirror it, but the **launch brand is independent and not yet chosen** — see [`app-context/initial-app-idea.md`](app-context/initial-app-idea.md) for positioning notes.
-- **One-liner (neutral):** A mobile-first web app for organizing group trips, splitting shared costs, and sending payments to organizers or directly to venues.
+- **Public product name: Jettison.** Name-of-record in code, copy, and metadata is the full word **Jettison**. The stylized abbreviation **`JTSN` is the secondary mark** — used for tight surfaces (favicon, app shortcut, social avatar, monogram lockups) where the full wordmark won't read. It is **not** the primary wordmark.
+- **Positioning (one-liner):** _Jettison is the mobile-first way for groups to plan, split, and settle shared trips and events — so no one fronts the money or chases anyone afterward._
+- **Naming notes:** Repo folder `maya-travel-app` and Beads issue prefix `tripplanner` are **legacy / internal** — both are scheduled to be renamed (see follow-up Beads from `tripplanner-a8c`). Do not let them leak into user-facing surfaces. Never use the verb "jettison" in transactional UI copy ("Jettison your share" reads as *throw it away*); reserve the verb for marketing only.
 - **MVP scope:** create trip → add people → add costs → everyone pays their share → money flows to organizer or venue.
 - **Out of scope (MVP):** social feed, public trips, BNPL, native mobile clients (Expo/React Native).
 
@@ -50,7 +51,7 @@ These are perspectives to think through, not separate chat personas, unless you 
 
 ## Repository conventions
 
-- **Cursor artifacts** under `.cursor/rules/` and `.cursor/skills/` use the **`project-`** filename prefix so tooling is not confused with the (TBD) product brand.
+- **Cursor artifacts** under `.cursor/rules/` and `.cursor/skills/` use the **`project-`** filename prefix (deliberately neutral, independent of the product brand "Jettison" so a future rename or rebrand is cheap).
 - **Architecture Decision Records (ADRs):** `docs/adr/NNNN-title.md`, sequential and dated; status one of Proposed / Accepted / Superseded.
 - **Supabase migrations** are the source of truth for schema. RLS ships in the same migration as the table.
 

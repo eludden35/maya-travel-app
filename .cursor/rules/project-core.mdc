@@ -1,0 +1,29 @@
+---
+description: Repository identity, mobile-first stance, creative design bar, and MVP discipline.
+alwaysApply: true
+---
+
+# Project core
+
+- **Public product name:** **Jettison.** Use this name in user-facing copy, marketing, and metadata. **Repo folder** `maya-travel-app` and **Beads prefix** `tripplanner` are legacy/internal — both are scheduled to be renamed (see follow-ups of `tripplanner-a8c`). Do not let them leak into user-visible surfaces. Never use the verb "jettison" in transactional UI strings — reserve the verb for marketing voice only.
+- **Backend (locked):** Supabase — Auth, Postgres, RLS. **Web framework / styling / hosting are TBD** until scaffolded; recommended baseline is Next.js App Router + TypeScript + Tailwind + `@supabase/ssr` + Vercel.
+- **Delivery:** **mobile-first web app**. Design and ship for narrow viewports first; tablet/desktop are progressive enhancement.
+- **Design quality bar:** **exceptionally creative and visually distinctive** — never generic SaaS template, never AI-default aesthetics. Creativity must coexist with usability, contrast, and accessibility. See `project-creative-design.mdc` and the `project-ui-ux` skill.
+
+## Discipline
+
+- **MVP fit:** every change must move the MVP forward (trips → people → costs → split → pay). No drive-by features.
+- **Simplicity + minimal blast radius:** smallest change that solves the problem; touch only what is necessary. See `project-workflow.mdc`.
+- **Prefer existing patterns** over inventing new ones — read neighboring code first.
+
+## Pointers
+
+- Entry point: `AGENTS.md`. Engineering glossary + boundaries: `app-context/product-engineering.md`.
+- Workflow: `project-workflow.mdc` + `project-orchestration` skill.
+- Team lenses: `project-team-lenses.mdc` + role skills (`project-architecture`, `project-pm`, `project-ui-ux`, `project-code-review`).
+- Issue tracker: `beads-workflow.mdc` + `project-beads` skill (Beads `bd` CLI).
+- Supabase: `supabase-security.mdc` + `project-supabase` skill, plus the workspace Supabase skill for deep patterns.
+
+## Session start
+
+When the upcoming task touches an area you have prior corrections about, **skim `tasks/lessons.md` first** before planning. Surface relevant lessons in your plan.

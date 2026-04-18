@@ -1,0 +1,55 @@
+---
+description: Touch-first UI baselines for the mobile-first web app.
+globs: **/*.tsx
+alwaysApply: false
+---
+
+# Mobile web UI baselines
+
+> **Provisional glob:** `**/*.tsx`. **MUST be tightened to the real app/component paths** (e.g. `app/**/*.tsx`, `components/**/*.tsx`) immediately after the framework is scaffolded.
+
+The product is a **mobile-first web app**. Phone viewports are the primary target; tablet/desktop are progressive enhancement.
+
+## Tap targets and spacing
+
+- Interactive elements (buttons, links, inputs, toggles) are **at least ~44×44 CSS px** in their hit area.
+- Adjacent tappable elements get enough spacing that a thumb cannot trigger the wrong one.
+
+## No hover-only affordances
+
+- Anything a user must discover or trigger is reachable **without hover** (no info hidden behind `:hover` only).
+- Tooltips on touch devices need a tap-to-reveal alternative.
+
+## Forms
+
+- Use the right input semantics: `type`, `inputMode`, `autoComplete`, `enterKeyHint`, `name`.
+- Surface errors near the field, not only at the top.
+- Numeric / currency inputs use `inputMode="decimal"` (or `numeric`) so the right on-screen keyboard appears.
+
+```tsx
+<input
+  type="email"
+  inputMode="email"
+  autoComplete="email"
+  enterKeyHint="next"
+  name="email"
+  required
+/>
+```
+
+## Layout
+
+- Default to a **single column** on small screens; use multi-column layouts only above a defined breakpoint.
+- Avoid horizontal scrolling at 360 px width (smallest common phone) for primary content.
+- Sticky headers / footers respect **`safe-area-inset-*`** on notched devices.
+
+```css
+.bottom-bar {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+```
+
+## Performance posture (mobile)
+
+- Be wary of large client bundles, unbounded lists, and synchronous waterfalls — mobile networks punish all three.
+- Coordinate with `project-creative-design.mdc`: visual ambition must not balloon the critical-path payload.

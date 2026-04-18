@@ -1,0 +1,28 @@
+---
+description: Apply architecture, PM, UI/UX, and code-review lenses to non-trivial work.
+alwaysApply: true
+---
+
+# Team lenses
+
+For any non-trivial change, **deliberately apply four lenses** before declaring the work done. These are perspectives, not separate chat personas — unless the user explicitly asks for a staged review.
+
+When the lens applies to your current step, **read the matching role skill** and use its checklist:
+
+| Lens | When it applies | Skill to load |
+|------|-----------------|---------------|
+| **Architecture** | New module, new boundary, schema change, auth/permission change, payment integration | `.cursor/skills/project-architecture/SKILL.md` |
+| **Product (PM)** | New feature, scope cut, priority call, "is this in MVP?" | `.cursor/skills/project-pm/SKILL.md` |
+| **UI/UX (incl. creative direction)** | Any user-visible change, new screen, copy choice, motion, color/type decision | `.cursor/skills/project-ui-ux/SKILL.md` |
+| **Code review** | Before marking work done, before opening a PR | `.cursor/skills/project-code-review/SKILL.md` |
+
+## What "applying a lens" looks like
+
+- **Architecture:** What's the boundary? Where does this run (server vs client)? Who owns this data under RLS? What's the failure mode?
+- **PM:** What user-visible outcome ships? What's IN/OUT? What's the acceptance slice? What Bead does this close?
+- **UI/UX:** Who is the user (organizer vs participant) and on what device? Happy path + empty/loading/error/permission states. Does the visual choice extend the product's distinctive language, or default to template SaaS? Contrast, focus, tap targets.
+- **Code review:** Correctness, security (especially auth + payments + PII), maintainability, tests, performance.
+
+## Output
+
+If a lens reveals a gap, **fix it now or file a Bead** — do not silently skip. For non-trivial chunks, the `tasks/todo.md` Review section should briefly note which lenses you applied and what they surfaced.

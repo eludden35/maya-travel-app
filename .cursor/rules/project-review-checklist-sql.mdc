@@ -1,0 +1,41 @@
+---
+description: Mandatory code-review checklist when touching Supabase migrations.
+globs: supabase/migrations/**/*.sql
+alwaysApply: false
+---
+
+# Code review checklist — SQL migrations
+
+Before merging a Supabase migration, walk this list. Deeper guidance lives in the `project-supabase` skill and `supabase-security.mdc`.
+
+## RLS
+
+- Every new user-facing table **enables RLS** in this migration.
+- Policies are present for the operations you actually need (`select`, `insert`, `update`, `delete`) — and **only** those.
+- No `USING (true)` / `WITH CHECK (true)` on user data in production. If a broad policy is required (e.g. service-role-only access), document **why** in the migration.
+
+```sql
+-- GOOD: scoped to the owning user
+create policy "trips_select_own" on trips
+  for select to authenticated
+  using (organizer_id = auth.uid());
+```
+
+## Indexes
+
+- Columns referenced in RLS predicates and common query filters (`user_id`, `trip_id`, FK columns) have an index.
+- Don't over-index: every index has a query that justifies it. Note the query in the migration comment when not obvious.
+
+## Dangerous patterns
+
+- No `DROP TABLE` / `DROP COLUMN` without an explicit data-preservation plan in the PR description.
+- No `ALTER TABLE` that rewrites a large table without a migration strategy.
+- No `GRANT ALL` to `anon` or `authenticated`; grants are minimal and intentional.
+- No raw user input concatenated into dynamic SQL — use parameter binding everywhere.
+
+## Reversibility / safety
+
+- Destructive operations are gated behind a clear, named migration (so rollback is obvious).
+- Foreign keys have an `on delete` policy that matches product intent (don't default to silent cascade for financial data).
+
+If any item fails, **fix it now or file a Bead** — do not merge.

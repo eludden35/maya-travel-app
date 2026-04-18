@@ -3,3 +3,6 @@
 .dolt/
 *.db
 .beads-credential-key
+
+# Cursor hook session state (transient timing / generation IDs, not project content)
+.cursor/hooks/state/

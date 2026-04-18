@@ -1,0 +1,59 @@
+---
+description: Creative, distinctive UI direction; reject generic SaaS / AI-default aesthetics without sacrificing accessibility.
+globs: **/*.tsx
+alwaysApply: false
+---
+
+# Creative design
+
+> **Provisional glob:** `**/*.tsx`. **MUST be tightened** to real source paths (e.g. `app/**/*.tsx`, `components/**/*.tsx`) immediately after the framework is scaffolded.
+
+The product must feel **exceptionally creative and visually distinctive** — never interchangeable template SaaS, never the AI-default "gradient blob + 3-column features + gray cards" aesthetic.
+
+## What distinction comes from
+
+Intentional **art direction**, not random decoration:
+
+- **Typography** — purposeful type system, real hierarchy, considered pairings.
+- **Color** — a system with rhythm and accents, not "primary + gray ramp".
+- **Spacing** — a deliberate spatial scale that gives the UI a recognizable cadence.
+- **Motion** — subtle, **purposeful** transitions that reinforce state changes; never noisy or decorative.
+- **Layout motifs** — recurring compositional moves (asymmetry, framing, anchored elements) that identify the product.
+
+## What to refuse
+
+- Generic gray cards, default Material/Bootstrap shadows, default-button look.
+- Stock travel pastiche (postcards, airplane icons everywhere) used decoratively.
+- "AI slop" landing pages: hero + 3 columns + testimonials + CTA, in that order, with default rounded buttons.
+- Visual novelty that **breaks** legibility, focus, semantics, or forms.
+
+## Brand: Jettison
+
+The public product name is **Jettison**. Direction-level visual identity is locked in [`app-context/product-engineering.md`](../../app-context/product-engineering.md) → "Design direction" — read it before designing any new screen. Summary:
+
+- **Pillars:** trust / warmth / momentum.
+- **Mood:** generous, tactile, considered, quietly confident.
+- **Signature motif:** oversized money numerals (tabular figures). Other motifs: anchored bottom action bar, layered warm surfaces.
+- **Palette character:** warm neutrals + single confident accent (Ember) + earthed semantics. Sample hex values are in `product-engineering.md`; treat them as **direction-level**, not as final brand swatches.
+- **Type:** Fraunces (display) + Inter (text) + JetBrains Mono (money tables only) — all Google Fonts (SIL OFL).
+- **JTSN role:** secondary mark (favicon / app shortcut / monogram). The full word **Jettison** is the primary wordmark.
+- **Voice:** use the name **Jettison** freely in marketing and brand voice. **Do not use "jettison" as a verb in transactional UI** — "Jettison your share" reads as *throw your money away*. Use neutral verbs ("Pay", "Send", "Settle") in product flows.
+
+New screens **extend the established direction** — pillars, mood, motifs — rather than each pulling toward a different mood. If a screen needs a new motif, write the reason in `product-engineering.md` first.
+
+## Tokens
+
+Token location is **conditionally pinned** in `app-context/product-engineering.md` → "Design tokens": Tailwind v4 `@theme` block in `app/globals.css` if Tailwind is chosen by the styling Bead, otherwise `:root` CSS variables in `app/styles/tokens.css`. Until that Bead resolves, propose values inline and flag them for promotion. Never let a raw hex code outlive a single PR without being traced into a token.
+
+## Reduced motion
+
+Honor `prefers-reduced-motion: reduce` (snippet + essential-vs-decorative motion list in `product-engineering.md` → "Motion"). Every animated state change must have a non-motion equivalent (color, copy, icon).
+
+## Non-negotiable
+
+- **WCAG-minded contrast** for text and interactive elements.
+- **Visible focus states** on every focusable element — do not strip focus rings to "look clean".
+- **Readable type** at mobile sizes (no 11 px body text).
+- Coordinate with `mobile-web-ui.mdc`: creativity must not break tap targets, hover/touch parity, or safe areas.
+
+If a visual idea fights usability, **change the execution** (layout, weight, hierarchy), not the requirement for clarity.
