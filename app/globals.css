@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+/*
+ * Jettison design tokens — direction-level palette from
+ * `app-context/product-engineering.md` -> "Design direction" -> "Color".
+ *
+ * IMPORTANT: these hex values are DIRECTION-LEVEL samples, not final brand
+ * swatches. The spec-level lock (with WCAG AA verified per pair) is
+ * tripplanner-i6r and lives downstream of the visual-mark Bead.
+ *
+ * Tailwind v4 reads the `@theme` block as the single source of truth for
+ * design tokens. Names map to utility classes — e.g. `--color-ink` becomes
+ * `text-ink`, `bg-ink`, `border-ink`. Don't reach for raw hex in components;
+ * extend this block instead.
+ */
+@theme {
+  /* Color — warm neutrals, single Ember accent, earthed semantics. */
+  --color-ink: #1a1714; /* primary text, primary buttons (warm near-black) */
+  --color-body: #2b2620; /* body text on light surfaces */
+  --color-secondary: #5a4f3f; /* labels, metadata */
+  --color-muted: #a89a82; /* tertiary only — never body, only ≥ 14px */
+  --color-hairline: #e5dccb; /* dividers — used sparingly */
+  --color-card: #f1ebe0; /* raised surfaces — one step above paper */
+  --color-paper: #faf7f2; /* app background */
+  --color-ember: #d9531e; /* single confident accent — CTAs, brand moments */
+  --color-success: #3f7a4d; /* deep moss, not Slack-green */
+  --color-warning: #c8862a; /* amber, not neon */
+  --color-error: #b8362e; /* warm red, not pure red */
+  --color-info: #3d6280; /* slate-blue, used sparingly */
+
+  /* Type — Fraunces (display) + Inter (text) + JetBrains Mono (money tables). */
+  --font-display: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Spacing scale (4 / 8 / 12 / 16 / 24 / 32 / 48). */
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+  --spacing-12: 3rem;
+}
+
+/*
+ * Base layer — keep deliberately small. Component patterns belong in
+ * components/ as their own files, not as utility soup here.
+ */
+@layer base {
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-body);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.5;
+    /* Use tabular figures by default for money tables. */
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Visible focus rings — never strip these to "look clean". */
+  :focus-visible {
+    outline: 2px solid var(--color-ember);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+/*
+ * Reduced motion — honor `prefers-reduced-motion: reduce` globally.
+ *
+ * Decorative motion is cut entirely; essential motion (payment confirmation,
+ * focus indicators) gets a separate, accelerated treatment in the components
+ * that own it. The full essential-vs-decorative list lives in
+ * `app-context/product-engineering.md` -> "Motion".
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

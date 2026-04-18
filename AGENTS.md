@@ -17,11 +17,18 @@ Single entry point for humans and AI agents working in this repo.
 
 ## Stack
 
-- **Backend (locked):** Supabase — Auth, Postgres, **Row-Level Security (RLS)**.
-- **Web framework / styling / hosting:** **TBD.** Recommended baseline when ready: **Next.js App Router + TypeScript + Tailwind CSS + `@supabase/ssr` + Vercel.** Alternate: **Vite + React Router + TypeScript + Supabase** (SPA, no SSR). Decision will land in `docs/adr/0001-framework-choice.md` and be recorded here.
-- **Test runner / CI:** TBD post-scaffold (default recommendation: Vitest; Vercel checks or GitHub Actions).
+Locked in [`docs/adr/0001-framework-choice.md`](docs/adr/0001-framework-choice.md):
 
-For deep Supabase patterns (Auth, Postgres, RLS, SSR), read the workspace **Supabase skill** before changing schema or auth code.
+- **Backend:** Supabase — Auth, Postgres, **Row-Level Security (RLS)**.
+- **Web framework:** **Next.js 16 App Router** (TypeScript, strict).
+- **Server-side auth:** **`@supabase/ssr`** + `@supabase/supabase-js`. Cookie-based sessions; [`proxy.ts`](proxy.ts) (Next.js 16 — formerly `middleware.ts`) refreshes on every request. See [`lib/supabase/{server,client,middleware}.ts`](lib/supabase/).
+- **Styling + tokens:** **Tailwind CSS v4** with the `@theme` block in [`app/globals.css`](app/globals.css) as the single source of truth for design tokens (warm palette, type ramp, spacing scale).
+- **Type system:** Fraunces (display) + Inter (text) + JetBrains Mono (money tables only) — loaded via `next/font/google` in [`app/layout.tsx`](app/layout.tsx).
+- **Hosting:** **Vercel** (preview URLs per branch).
+- **Package manager:** **pnpm**.
+- **Test runner / CI:** TBD post-scaffold (default recommendation: Vitest; Vercel checks or GitHub Actions). Tracked in Beads.
+
+For App Router conventions (Server Components default, Server Actions, Route Handlers, and the hard rule against `SUPABASE_SERVICE_ROLE_KEY` in client-bundled modules), see [`.cursor/rules/typescript-react.mdc`](.cursor/rules/typescript-react.mdc). For deep Supabase patterns, read the workspace **Supabase skill** before changing schema or auth code.
 
 ## Issue tracking — Beads (`bd`)
 

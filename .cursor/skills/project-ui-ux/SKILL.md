@@ -94,9 +94,10 @@ The product is **Jettison**. Direction-level identity is locked (see `product-en
 
 ## Tokens and styles
 
-- Token location is **conditionally pinned** in `product-engineering.md` → "Design tokens": Tailwind v4 `@theme` block in `app/globals.css` if Tailwind is chosen by the styling Bead, otherwise `:root` CSS variables in `app/styles/tokens.css`. Final pin happens when the styling Bead closes.
-- Until tokens exist as code, propose values inline **and flag them for promotion** — never let raw hex codes outlive a single PR without being traced into a token.
-- The sample hex ramp in `product-engineering.md` is **direction-level**. Don't lift it into a Tailwind config verbatim; the spec-level lock follow-up Bead is where final values land.
+- Tokens live in the **`@theme` block in [`app/globals.css`](../../../app/globals.css)** (Tailwind v4 idiom). Names map to utility classes — `--color-ink` → `text-ink`, `--font-display` → `font-display`, `--spacing-4` → `p-4`. There is exactly one source of truth.
+- **Adding a token:** extend `@theme` in `globals.css`. Don't introduce a parallel token file or a Tailwind config object.
+- **Raw hex codes** never live in components. If you need a new shade, add it to `@theme` first — and if it implies a brand decision, explain it in `product-engineering.md` -> "Color" before you ship.
+- The hex ramp in `product-engineering.md` -> "Color" and currently in `globals.css` is **direction-level**. The spec-level lock (final ramp with WCAG AA verified per pair, weight + license confirmed) is the follow-up Bead.
 
 ## Reviewing a visual change
 

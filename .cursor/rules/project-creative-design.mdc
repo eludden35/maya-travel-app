@@ -1,12 +1,10 @@
 ---
 description: Creative, distinctive UI direction; reject generic SaaS / AI-default aesthetics without sacrificing accessibility.
-globs: **/*.tsx
+globs: app/**/*.{ts,tsx},components/**/*.{ts,tsx}
 alwaysApply: false
 ---
 
 # Creative design
-
-> **Provisional glob:** `**/*.tsx`. **MUST be tightened** to real source paths (e.g. `app/**/*.tsx`, `components/**/*.tsx`) immediately after the framework is scaffolded.
 
 The product must feel **exceptionally creative and visually distinctive** — never interchangeable template SaaS, never the AI-default "gradient blob + 3-column features + gray cards" aesthetic.
 
@@ -43,7 +41,7 @@ New screens **extend the established direction** — pillars, mood, motifs — r
 
 ## Tokens
 
-Token location is **conditionally pinned** in `app-context/product-engineering.md` → "Design tokens": Tailwind v4 `@theme` block in `app/globals.css` if Tailwind is chosen by the styling Bead, otherwise `:root` CSS variables in `app/styles/tokens.css`. Until that Bead resolves, propose values inline and flag them for promotion. Never let a raw hex code outlive a single PR without being traced into a token.
+Tokens live in the **`@theme` block in [`app/globals.css`](../../app/globals.css)** (Tailwind v4 idiom). Names map to utility classes — `--color-ink` becomes `text-ink`, `bg-ink`, `border-ink`. There is exactly one source of truth; don't introduce a parallel token file or a Tailwind config object. Raw hex codes never live in components — extend `@theme` first, and if it implies a brand decision, explain it in `product-engineering.md` → "Color" before shipping.
 
 ## Reduced motion
 

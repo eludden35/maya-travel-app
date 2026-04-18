@@ -1,12 +1,10 @@
 ---
 description: Touch-first UI baselines for the mobile-first web app.
-globs: **/*.tsx
+globs: app/**/*.{ts,tsx},components/**/*.{ts,tsx}
 alwaysApply: false
 ---
 
 # Mobile web UI baselines
-
-> **Provisional glob:** `**/*.tsx`. **MUST be tightened to the real app/component paths** (e.g. `app/**/*.tsx`, `components/**/*.tsx`) immediately after the framework is scaffolded.
 
 The product is a **mobile-first web app**. Phone viewports are the primary target; tablet/desktop are progressive enhancement.
 

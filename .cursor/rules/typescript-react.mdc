@@ -1,0 +1,73 @@
+---
+description: Next.js App Router + TypeScript + React conventions for Jettison. Where logic runs (server vs client), which primitive to reach for, and the hard rule against leaking server secrets into the client bundle.
+globs: app/**/*.{ts,tsx},components/**/*.{ts,tsx},lib/**/*.{ts,tsx},proxy.ts
+alwaysApply: false
+---
+
+# TypeScript / React (App Router)
+
+The stack is locked: **Next.js App Router + strict TypeScript + Tailwind v4 + `@supabase/ssr`** (see [`docs/adr/0001-framework-choice.md`](../../docs/adr/0001-framework-choice.md)). This rule codifies the conventions so we are not re-deciding boundaries on every PR.
+
+Pairs with [`project-review-checklist-ts.mdc`](./project-review-checklist-ts.mdc), [`supabase-security.mdc`](./supabase-security.mdc), and the `project-architecture` skill.
+
+## Default to Server Components
+
+- **Every component under `app/` is a Server Component by default.** Do not add `"use client"` reflexively.
+- Add `"use client"` **only when** the component needs one of: `useState`, `useEffect`, `useRef`, `useTransition`, `useFormStatus`, browser-only APIs (`window`, `document`, `localStorage`), event handlers (`onClick`, `onChange` on raw inputs), or third-party libraries that themselves require a client.
+- If you are about to add `"use client"` for "convenience" — pause. Push the client boundary as far down the tree as possible. A page can be a Server Component while a small interactive widget inside it is `"use client"`.
+
+## Choosing the right primitive
+
+| You need to… | Use | Notes |
+|---|---|---|
+| Render a page from data | **Server Component** + `await createClient()` from `lib/supabase/server` | Default path. Cookies are read; mutations are not done here. |
+| Mutate data from a form | **Server Action** (`"use server"`) | Form `action={myAction}` from a client form, or invoked via `useFormState` / `useTransition`. |
+| Expose a public URL (webhook, OAuth callback, third-party redirect) | **Route Handler** (`app/.../route.ts`) | Required when a non-React caller needs a stable URL. Magic-link callback in `app/auth/callback/route.ts` is the canonical example. |
+| Run on every request before render | **[`proxy.ts`](../../proxy.ts)** at the repo root (Next.js 16 — formerly `middleware.ts`) | Use sparingly; today its only job is `updateSession` for `@supabase/ssr`. |
+| Cache + revalidate data | **Cache Components** primitives (Next 16) | Prefer `'use cache'` + `cacheTag` / `cacheLife` over hand-rolled `unstable_cache`. |
+
+## Hard rule: server secrets stay server-side
+
+`SUPABASE_SERVICE_ROLE_KEY` (and any other server-only secret — payment provider keys, webhook signing secrets, internal API tokens) **must not be reachable from the client bundle**. Specifically:
+
+- Do **not** import `process.env.SUPABASE_SERVICE_ROLE_KEY` (or any module that does) from a file with `"use client"` at the top, or from a file that is imported by such a file.
+- Do **not** put server secrets behind a `NEXT_PUBLIC_*` name. `NEXT_PUBLIC_*` is **inlined into the browser bundle by definition** — that's the whole point of the prefix.
+- Service-role access lives in clearly named server-only modules (e.g. `lib/supabase/admin/*`). The browser-side client (`lib/supabase/client.ts`) reads only the anon key.
+- The boundary check in CI / verification (`rg "SUPABASE_SERVICE_ROLE_KEY" app/ components/ lib/`) MUST return matches only in files that do **not** contain `"use client"`, AND only via `process.env`, never as a string literal.
+
+If you are unsure where a piece of logic should live, **default to server** and put a thin `"use client"` shell around the parts the user actually clicks.
+
+## Forms: Server Actions over hand-rolled fetch
+
+- A `<form action={someServerAction}>` is the simplest mutation primitive in App Router. It works without JS. Use it.
+- For pending state, wrap the call in `useTransition` (in a `"use client"` wrapper) and disable the submit button while pending.
+- Validate on the server **always**, even if you also validate on the client. Server validation is the gate; client validation is the UX nicety.
+
+## Data shape
+
+- Database row types come from **`supabase gen types typescript`** (added in a follow-up Bead). Don't duplicate types by hand.
+- Domain language is locked in [`.cursor/skills/project-domain/SKILL.md`](../skills/project-domain/SKILL.md): **trip / member / organizer / expense / share / payout / venue.** Match these names in code, table names, and component names.
+
+## Strict TypeScript expectations
+
+- `strict` is on. Don't escape it — no `any`, no `as unknown as Foo`, no `// @ts-ignore`. If a third-party type is wrong, narrow with a type guard or a typed wrapper, not a cast.
+- Errors crossing trust boundaries (DB rows, request payloads, user input, third-party responses) get a typed shape **before** they enter business logic.
+- Async functions handle rejection paths explicitly. `await something()` without a try/catch is fine only when the caller has its own error boundary or redirect.
+
+## Imports and aliases
+
+- `@/*` resolves to the repo root (`tsconfig.json`). Prefer `@/lib/supabase/server` over `../../../lib/supabase/server`.
+- Group imports: framework / third-party first, then `@/` aliases, then relative.
+
+## Styling
+
+- Use Tailwind v4 utilities. Tokens (colors, fonts, spacing) live in `app/globals.css` `@theme` — extend that file rather than inlining hex codes.
+- Pair this rule with [`mobile-web-ui.mdc`](./mobile-web-ui.mdc) (tap targets, forms, safe areas) and [`project-creative-design.mdc`](./project-creative-design.mdc) (creative direction, anti-patterns).
+
+## Anti-patterns to refuse
+
+- `"use client"` at the top of `page.tsx` to dodge thinking about boundaries.
+- Hand-rolled `fetch('/api/...')` for a mutation that could be a Server Action.
+- A Route Handler used purely as a JSON RPC endpoint when a Server Action would do.
+- `process.env.SOMETHING_SECRET` referenced anywhere under `app/**/*.tsx` that is itself client-bundled.
+- Reaching for a Context Provider before checking whether the data could be fetched server-side and passed as props.

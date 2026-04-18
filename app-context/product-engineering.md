@@ -168,29 +168,28 @@ Reduced-motion behavior — honor `prefers-reduced-motion: reduce` globally:
 - Cool corporate-fintech grays — wrong emotional register for "protecting friendships".
 - Rainbow accent sets — Ember does the heavy lifting alone.
 
-### Design tokens (conditional pin)
+### Design tokens
 
-The styling solution is still TBD (open question below). Until it lands:
+Tokens live in the **`@theme` block in [`app/globals.css`](../app/globals.css)** — the Tailwind v4 idiom. Names map directly to utility classes (e.g. `--color-ink` → `text-ink` / `bg-ink` / `border-ink`).
 
-- **If Tailwind v4 is chosen:** tokens live in the `@theme` block in `app/globals.css` (Tailwind v4 idiom).
-- **Otherwise (CSS variables, vanilla-extract, Panda, etc.):** tokens live as `:root` custom properties in `app/styles/tokens.css`, with a `prefers-color-scheme: dark` block when dark mode lands.
-- **Until the styling Bead resolves:** propose values inline; never let a raw hex code outlive a single PR without being traced into a token. Final pin lives here once the styling Bead closes.
+- **Adding a token:** extend `@theme` in `globals.css`. Don't introduce a parallel token file or a Tailwind config object — there's exactly one source of truth.
+- **Raw hex codes:** never live in components. If you need a new shade, add it to `@theme` first (and explain it in this file's "Color" section if it implies a brand decision).
+- **Dark mode:** not yet — when it lands it will use a `[data-theme="dark"]` selector overriding the same token names, not a separate file. Tracked in Beads.
 
 Distinction comes from: typography, color rhythm, spacing system, intentional motion, and the layout motifs above — not novelty that breaks usability.
 
-## Architecture sketch (will firm up after framework choice)
+## Architecture sketch
 
 - **Source of truth:** Supabase Postgres. Other systems (payment provider, email) are integrators.
-- **Server boundary:** all secret-bearing operations run server-side (Next.js Route Handlers / Server Actions, or a thin Vite-compatible BFF if SPA).
-- **Client:** the browser holds only the Supabase **anon key** and per-user session cookies/tokens.
+- **Server boundary:** secret-bearing operations run as Next.js **Server Components**, **Server Actions**, **Route Handlers**, or **[`proxy.ts`](../proxy.ts)** (Next.js 16 — the successor to `middleware.ts`) — never in a `"use client"` module. `SUPABASE_SERVICE_ROLE_KEY` and any other server secret stays out of the client bundle by file convention (see [`.cursor/rules/typescript-react.mdc`](../.cursor/rules/typescript-react.mdc)).
+- **Client:** the browser holds only the Supabase **anon key** and per-user session cookies. `lib/supabase/client.ts` (browser) reads the anon key; `lib/supabase/server.ts` reads the same anon key plus cookies; service-role access lives in clearly named server-only modules (added when needed).
+- **Session refresh:** [`proxy.ts`](../proxy.ts) → [`lib/supabase/middleware.ts`](../lib/supabase/middleware.ts) calls `supabase.auth.getUser()` on every request that isn't a static asset.
 - **Background work:** kept minimal at MVP — webhooks + DB triggers for now, no separate worker.
 
 ## Open product/eng questions (track in Beads)
 
-- Choose web framework (Next App Router vs. Vite SPA) — first ADR.
 - Choose payment provider and country/currency scope.
-- Choose styling approach + token location.
-- Choose test runner and CI surface.
+- Choose test runner and CI surface (default recommendation: Vitest + Vercel checks).
 - Visual mark design (logo, wordmark, favicon, app shortcut executing the JTSN secondary-mark role) — follow-up of `tripplanner-tw8`.
-- Spec-level color + type lock (final hex ramp with WCAG AA verified, font weights + license) — follow-up of `tripplanner-tw8`, blocked by the styling-stack decision.
+- Spec-level color + type lock (final hex ramp with WCAG AA verified, font weights + license) — follow-up of `tripplanner-tw8`, now unblocked by the locked styling stack (Tailwind v4 + `@theme`).
 - Rename repo folder + npm package + Beads prefix to align with **Jettison** — follow-ups of `tripplanner-a8c`.
