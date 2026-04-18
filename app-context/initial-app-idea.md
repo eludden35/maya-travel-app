@@ -1,3 +1,7 @@
+> **Note (2026-04-18):** This file is the **original brainstorm** that started Jettison. Treat it as historical context, not as canonical scope. The canonical product scope and domain language now live in [`product-engineering.md`](product-engineering.md), and Jettison has since been **reframed as a social-first product** (a social network for group travel with payments built in) per [`docs/adr/0002-social-vision-pivot.md`](../docs/adr/0002-social-vision-pivot.md). Statements below that frame social/discovery as out-of-MVP reflect the original transactional-only vision and are superseded by the ADR.
+
+---
+
 Got it — I’ll answer this plain-spoken, step-by-step, no fluff, and I’ll be honest about how (and when) this can realistically make you money.
 
 ⸻

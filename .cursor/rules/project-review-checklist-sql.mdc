@@ -21,6 +21,29 @@ create policy "trips_select_own" on trips
   using (organizer_id = auth.uid());
 ```
 
+## Money privacy (ADR 0002 hard rule)
+
+If this migration touches a **money table** (`expenses`, `expense_shares`, `payouts`, or anything monetary):
+
+- Select / insert / update policies are **members-only** (membership-based), and **do not** consult `trips.visibility`, `follows`, or any other social-grant table.
+- No branch fans out money rows to non-members regardless of the trip's `visibility` value.
+- A public Trip exposes its itinerary, photos, and Posts; it **never** exposes amounts.
+- If the feature requires a public money-shaped surface (rare), it lives in a **separate denormalized table** with its own narrow policy — not as a relaxation of the policy on the underlying money table. That relaxation needs a new ADR.
+
+See [`supabase-security.mdc`](supabase-security.mdc) → "Money data is never readable by non-trip-members" for the hard rule and the GOOD/BAD examples.
+
+## Image pre-moderation (ADR 0002 hard rule)
+
+If this migration touches `images`, `posts`, `profiles` (avatar column), or any new table that holds user-uploaded image references:
+
+- The image row carries an `image_state` enum (`pending_review` | `approved` | `rejected`) — or its parent post/profile column equivalent.
+- The select policy gates non-owner, non-moderator reads on `state = 'approved'`. Pending and rejected images are visible only to the uploader and the moderator role.
+- Storage paths reflect the two-tier model: `images-pending/...` (private bucket) for non-approved files, `images-approved/...` (public-readable) for approved files. New tables / columns should align with this.
+- The **EXIF GPS strip + CSAM scan** server-side pipeline runs before any image row enters `pending_review`. Migrations that add an upload path without referencing this pipeline fail review.
+- Posts whose photos are not yet approved sit in their own `pending_media` / `pending_review` state and are not visible in any feed.
+
+See [`supabase-security.mdc`](supabase-security.mdc) → "Every uploaded image is pre-moderated and invisible until approved" for the hard rule and the GOOD/BAD examples.
+
 ## Indexes
 
 - Columns referenced in RLS predicates and common query filters (`user_id`, `trip_id`, FK columns) have an index.

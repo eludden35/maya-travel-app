@@ -21,9 +21,35 @@ Intentional **art direction**, not random decoration:
 ## What to refuse
 
 - Generic gray cards, default Material/Bootstrap shadows, default-button look.
-- Stock travel pastiche (postcards, airplane icons everywhere) used decoratively.
+- Stock travel pastiche (postcards, airplane icons everywhere) used **decoratively**. (The postcard motif used **intentionally** to anchor the post composer, pending-review state, and DM treatment — see "Social surfaces" below — is on-brand. Decorative postcard imagery elsewhere is still a refusal.)
 - "AI slop" landing pages: hero + 3 columns + testimonials + CTA, in that order, with default rounded buttons.
 - Visual novelty that **breaks** legibility, focus, semantics, or forms.
+
+### Social-surface anti-patterns (added 2026-04-18, ADR 0002)
+
+The social MVP introduces feed, composer, profile, follow, comment, reaction, DM, notification, and explore surfaces. Refuse outright on every one of them:
+
+- Generic blue-corporate-rectangle "What's on your mind?" composer.
+- Instagram-style flat 3-column image grid for explore.
+- Thumbs-up / heart reactions; emoji-pile reaction bars.
+- Red-circle notification badges in the chrome.
+- iMessage-style chat bubbles with directional tails.
+- Material-Design floating action buttons.
+- Gradient-blob "social" landing page.
+- Default Mapbox / Google blue map style on the explore tab.
+
+If a screen could be screenshotted into a generic-social-app-clone collection without anyone noticing, **it has failed.**
+
+## Hard rule: reference patterns, never copy visuals
+
+> **Reference social UX patterns from Facebook, Instagram, BeReal, Geneva, Partiful, Letterboxd, and Strava freely; never copy their visual treatments. Every social surface must look unmistakably like Jettison or it has failed.**
+
+What this means in practice:
+
+- **Patterns are fair game** — feed structure, composer affordances, follow/unfollow flows, comment threading, notification design, explore filtering, DM thread ergonomics. Borrow what works.
+- **Visuals are not** — color palette, typography, iconography, motif language, shape language, copy register, motion grammar all come from Jettison's locked direction (warm/tactile/considered/quietly-confident; Ink/Ember/Paper; Fraunces+Inter+JetBrains Mono; oversized money numerals; layered warm surfaces).
+
+The seven concrete starting sketches that operationalize this rule (postcard composer, trip-grouped feed, custom reaction glyphs, "in the mail" pending state, trip-notes DMs, map-first explore, pennant notifications) live in [`.cursor/skills/project-ui-ux/SKILL.md`](../skills/project-ui-ux/SKILL.md) under "Social surfaces — distinctive by default". This rule and that skill section must stay in sync — touch one, touch the other.
 
 ## Brand: Jettison
 

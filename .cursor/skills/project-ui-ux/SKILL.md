@@ -63,13 +63,101 @@ The Jettison pillars are **trust / warmth / momentum**. They live in [`app-conte
 }
 ```
 
+## Money mode vs content mode
+
+Per [`docs/adr/0002-social-vision-pivot.md`](../../../docs/adr/0002-social-vision-pivot.md), Jettison is two products living in one app: a **money product** (trips, expenses, payouts) and a **content product** (profiles, follows, posts, comments, reactions, DMs, explore, notifications). They share **all four** pillars (trust / warmth / momentum / quietly-confident-considered), the **same palette**, the **same type families**, and the **same spacing scale**. They differ in **layout grammar**:
+
+| | Money mode | Content mode |
+|---|---|---|
+| Protagonist on screen | The number (Fraunces tabular figures, oversized) | The image / the trip / the post |
+| Density | Generous; one big thing per screen | Generous still, but multiple cards in scroll grouped by Trip |
+| Motion | Crisp confirmations (150–200ms ease-out) — no decoration | Subtle reveals on scroll; same durations; same reduced-motion rules |
+| Copy register | Calm, neutral verbs ("Pay", "Send", "Settle") | Warm, ritual-flavored ("Pin to trip", "Mail it", "Write a trip note") |
+| Card affordance | Receipt-like; tabular alignment | Postcard-like; image-dominant; Fraunces caption |
+
+Surfaces that mix both modes (e.g. a trip detail screen showing both costs and posts) **separate them visually** — money panel uses money-mode treatment; post panel uses content-mode treatment. The same screen does not blend.
+
+## Social surfaces — distinctive by default
+
+The principle (also encoded as a hard rule in [`.cursor/rules/project-creative-design.mdc`](../../../.cursor/rules/project-creative-design.mdc)):
+
+> **Reference Facebook, Instagram, BeReal, Geneva, Partiful, Letterboxd, and Strava freely for which interaction patterns work in social UX. Never copy their visual treatments. Every social surface must look unmistakably like Jettison or it has failed.**
+
+If a screen could be screenshotted into a generic-social-app-clone collection without anyone noticing, **it has failed.**
+
+### Social-surface anti-pattern shortlist
+
+Refuse outright:
+
+- Generic blue-corporate-rectangle "What's on your mind?" composer.
+- Instagram-style flat 3-column image grid for explore.
+- Thumbs-up / heart reactions; emoji-pile reaction bars.
+- Red-circle notification badges in the chrome.
+- iMessage-style chat bubbles with directional tails.
+- Material-Design floating action buttons.
+- Gradient-blob "social" landing page.
+- Default Mapbox / Google blue map style on the explore tab.
+
+### Seven concrete starting sketches
+
+These are directional sketches, not final specs — the design Bead refines them into a Figma + token-aligned spec. Treat them as the orientation any UI implementation chunk arrives at by default. If a chunk wants to depart, write the reason in `product-engineering.md` first.
+
+1. **Post composer = trip postcard.** Polaroid-vertical aspect, the photo dominant, a short caption in **Fraunces** below, an explicit "tag this to a moment" affordance that links the post to a date or a venue from the trip itinerary. Send/publish copy reads like "**Mail it**" or "**Pin to trip**" — not "Post" and not "Share." (Reserve the verb "jettison" for marketing only — see [`AGENTS.md`](../../../AGENTS.md).)
+2. **Feed structured by Trip as the unit of consumption.** Scroll-snap sections, each section headed by the trip name + dates + members, posts grouped under their trip. The trip is the protagonist, not the post. Distinct from every existing flat-firehose social feed and reinforces the brand promise.
+3. **Reactions = small custom-illustrated travel-themed glyphs.** Tight set of 3–5 total: e.g. **"I'd join"** (a small pennant), **"save for later"** (a folded map corner), **"wow"** (a sun bursting). Each glyph is a brand asset, drawn by hand or vectorized in the same family as the JTSN monogram. **No emoji, no thumbs-up, no hearts.**
+4. **Pending-review state = "your postcard is in the mail."** A small Fraunces-set caption over a stylized stamp/postmark on the placeholder card. Calm, on-brand, plays the moderation latency as part of the product's ritual rather than as friction. The same motif reappears on the **rejection** state ("**returned to sender** — here's why") with the moderator's reason code in plain copy and a link to appeal.
+5. **DMs = trip notes.** Each thread is framed as correspondence — Fraunces in the thread header, body in Inter, optional context chip showing which trip (if any) the thread is anchored to. Bubbles are wider, fewer, and more letter-like; **no chat-bubble tail**. Mutual-context gating language reads as warm rather than restrictive: "**You can write to people you both follow, share a trip with, or have a join request with**" — never "blocked" or "denied."
+6. **Explore = map-first.** A warm-paper-tinted map (custom Mapbox or MapLibre style in the Jettison palette — **no default Google blue**) with public-trip cards floating as small postcards over their destination pins. Filters are small "stamps" along the bottom (vibe, dates, group size). A toggle to a card-list view exists but is secondary.
+7. **Notifications = pennants, not red dots.** A small triangular pennant icon in the chrome with a count badge in **Ember** (the warm clay-orange accent), not bright red. Notification rows are typeset like postcards too — sender's avatar + Fraunces "verb" + Inter context.
+
+### Where this lives in tokens
+
+These social surfaces drive the **content-mode** layout grammar; money-mode (trip detail, payments) keeps the oversized-money-numerals signature unchanged. Both modes share pillars, palette, type, and spacing scale defined in [`app/globals.css`](../../../app/globals.css) `@theme`. Adding a new color, glyph, or motif requires a written reason in `product-engineering.md` first — same rule as before.
+
+### Permission to be creative is explicit
+
+> **When in doubt between a Facebook-shaped solution and a distinctively Jettison-shaped solution, choose the latter and verify usability with a small test. Generic is the failure mode.**
+
+## Pending-review UX
+
+Image moderation introduces three new states the user actually sees. Each has a treatment, a copy register, and a hard rule.
+
+### `pending_media` / `pending_review` (author's view)
+
+- **Visual treatment:** the postcard composer's preview becomes a **stylized stamp/postmark over a soft placeholder**. Card looks intact, just clearly "in transit."
+- **Copy:** **"Your postcard is in the mail."** Subhead: **"Posts with photos are reviewed before they go live — usually within 24 hours."** Calm, no apology, no scold.
+- **Hard rule:** the image is **invisible to anyone but the author** until approved — including the author's followers, including the trip's other members, including organizers. RLS enforces this; the UI must not pretend otherwise (no "your friends are seeing it now" preview, no "share early" affordance).
+
+### `published`
+
+- **Visual treatment:** standard postcard card — the moderation step is invisible to non-authors. Don't surface "✅ approved" badges.
+- **Notification:** the author gets a notification ("**Your postcard arrived.**"), and trip-relevant followers get the standard new-post notification.
+
+### `rejected` (author's view)
+
+- **Visual treatment:** the same stylized stamp, marked **"returned to sender"** with the reason code in plain copy ("Image contains nudity", "Image contains minors", "Image is unrelated to the trip", etc. — fixed code list, no free-form reason).
+- **Copy register:** factual + warm, never moralizing. End with an **appeal path** ("If this looks wrong, write us a note — link") — never a dead end.
+- **Hard rule:** rejected images stay invisible to everyone but the author and the moderator role. The audit retention window is set in the architecture skill; the UI never references "all rejected images are public."
+
+### Moderator queue UI principles
+
+The moderator queue is **founder-only at MVP** but needs to be **fast** because the founder's time is the binding constraint:
+
+- **Stack-of-cards layout**, one image at a time, with the parent post's caption and trip context above.
+- **Keyboard-first triage**: `A` to approve, `R` to reject (then a digit `1-9` for the reason code), `?` for help. Mouse paths exist but are secondary.
+- **Reason codes from a small fixed list** (no free-form). Keeps decisions auditable, consistent across moderators, and trainable for the AI auto-classification follow-up.
+- **Queue-counter visible at all times** ("**42 postcards waiting**"), so the founder can read the throughput pressure without leaving the queue.
+- **Audit-grade**: every decision writes a `moderation_decisions` row with timestamp, moderator, decision, reason code. No silent approvals, no in-place edits.
+- **Live-region announcements** (`aria-live="polite"`) when the queue advances, so a screen reader user can triage too.
+
 ## Anti-patterns to refuse
 
 - Generic dashboard look (gray cards, default Material/Bootstrap shadows, default rounded buttons).
 - "AI slop" landing pages: hero + 3 columns + testimonials, in that order, with a gradient blob.
-- Travel-app pastiche (postcards, airplane icons everywhere) used decoratively.
+- Travel-app pastiche (postcards, airplane icons everywhere) used decoratively. (Note: the **postcard motif is intentional** in the social-surface sketches above — it's a deliberate metaphor anchoring composer, pending-review, and DM treatments. Decorative postcard imagery elsewhere is still a refusal.)
 - Stripping focus rings to "look clean".
 - Ambient color over text without contrast checks.
+- All eight items from the **Social-surface anti-pattern shortlist** above.
 
 ## Accessibility (beyond tap targets)
 
@@ -81,6 +169,7 @@ Tap targets are in `mobile-web-ui.mdc`. The rest of the floor:
 - **Color independence** for meaning — don't communicate "owed" only via red.
 - **Dialogs** have a label, an accessible name, and an explicit close affordance.
 - **Live regions** (`aria-live="polite"`) for async confirmations users need to hear about.
+- **Image alt text on every Post.** The post composer **requires** an alt-text field for any uploaded image — empty alt is an explicit user choice ("decorative") gated by a checkbox the user must tick, never the default. Reactions, pending-review stamps, and the JTSN monogram are decorative and use empty `alt=""`. Screen-reader users should be able to read the followers feed without missing what the photo depicts.
 
 ## UI copy
 

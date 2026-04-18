@@ -13,23 +13,94 @@ alwaysApply: false
 - Prefer `auth.uid() = user_id` (or membership-based) policies; document why a policy is broad if it must be.
 - Index every column you filter by in a policy (`user_id`, `trip_id`, etc.) to keep RLS-protected queries cheap.
 
-## Service role and keys
+## Hard rules from ADR 0002 (social vision pivot)
 
-- The **`SUPABASE_SERVICE_ROLE_KEY`** is **server-side only**. It must **never** be:
-  - imported by a `"use client"` module,
-  - exposed via `NEXT_PUBLIC_*` (or any client-bundled env),
-  - referenced in code reachable from the browser bundle.
-- Browser code uses the **anon key** + the user's session only.
+These rules are **non-negotiable** and survive every later migration unless explicitly superseded by an ADR superseding [`docs/adr/0002-social-vision-pivot.md`](../../docs/adr/0002-social-vision-pivot.md). They are also encoded as items in [`.cursor/rules/project-review-checklist-sql.mdc`](project-review-checklist-sql.mdc).
+
+### 1. Money data is never readable by non-trip-members
+
+**Money tables** — `expenses`, `expense_shares`, `payouts`, and any future monetary table — get **member-only** RLS policies. They **do not** consult `trips.visibility`, the `follows` table, or any other social-grant table. A public Trip exposes its itinerary, photos, and posts; it **never** exposes amounts owed or paid.
+
+```sql
+-- GOOD: members-only, regardless of trip visibility or follower status
+create policy "expenses_select_members" on expenses
+  for select to authenticated
+  using (
+    exists (
+      select 1 from trip_members tm
+      where tm.trip_id = expenses.trip_id
+        and tm.profile_id = auth.uid()
+    )
+  );
+
+-- BAD: any branch that fans out money rows on visibility = 'public'
+-- BAD: any branch that fans out money rows to followers
+-- BAD: any join into 'follows' or 'trips.visibility' inside a money-table policy
+```
+
+If a feature genuinely needs to expose a money-shaped artifact publicly (e.g. an aggregated public "total raised" for a charity trip), it must be **a separate denormalized table** with its own policy, **never** a relaxation of the policy on `expenses` / `expense_shares` / `payouts`. That relaxation requires a new ADR.
+
+### 2. Every uploaded image is pre-moderated and invisible until approved
+
+Every uploaded image (Post images, Profile avatars, any future user-uploaded image) sits in `pending_review` state in a private storage bucket and is **invisible to anyone but the uploader and the moderator role** until a human moderator approves it. Text content is not pre-moderated; only images are.
+
+The enforcement is layered:
+
+- **Storage:** two buckets — `images-pending` (private, RLS limits read to uploader + moderator) and `images-approved` (public-readable). The act of approval is a server-side copy from pending to approved.
+- **DB:** the `images` table carries an `image_state` enum (`pending_review` | `approved` | `rejected`). RLS on `images` and on parent rows (`posts`, `profiles`) gates visibility to `state = 'approved'` for non-owners / non-moderators.
+- **Pipeline:** every upload runs **EXIF GPS strip** (server-side, mandatory) and **CSAM scan** (vendor TBD) **before** the row enters `pending_review`. CSAM hits are quarantined and reported per legal obligation.
+
+```sql
+-- GOOD: images are visible to non-owners only when approved
+create policy "images_select_approved_or_owner_or_mod" on images
+  for select to authenticated
+  using (
+    state = 'approved'
+    or auth.uid() = uploader_id
+    or is_moderator(auth.uid())
+  );
+
+-- BAD: any policy that lets a non-owner non-moderator see images.state IN ('pending_review','rejected')
+-- BAD: skipping the EXIF strip / CSAM scan because "we'll add it later"
+-- BAD: a public storage bucket for raw uploads
+```
+
+The full state-machine + storage-tier sketch lives in [`.cursor/skills/project-architecture/SKILL.md`](../skills/project-architecture/SKILL.md) → "Image upload + pre-moderation pipeline".
+
+**The CSAM scan and the manual moderator queue UI are P0 gates — Posts cannot ship before both close.** AI auto-classification, when it ships, is a top-of-funnel filter that raises throughput; **it never replaces the human review floor.** Any future relaxation of these requires an ADR superseding 0002.
+
+## API keys
+
+Supabase introduced a new API-key naming in 2025; both forms are in the wild and the trust boundary is the same:
+
+| Role | New (preferred) | Legacy | Where it can live |
+|---|---|---|---|
+| Public, browser-safe | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (`sb_publishable_*`) | `NEXT_PUBLIC_SUPABASE_ANON_KEY` (JWT) | Server **and** browser. RLS is the protection. |
+| Server-only, RLS-bypass | `SUPABASE_SECRET_KEY` (`sb_secret_*`) | `SUPABASE_SERVICE_ROLE_KEY` (JWT) | **Server only.** Never under `NEXT_PUBLIC_*`. |
+
+The server-only key — by either name — must **never** be:
+
+- imported by a `"use client"` module,
+- exposed via `NEXT_PUBLIC_*` (or any client-bundled env — Next.js inlines `NEXT_PUBLIC_*` into the browser bundle, so a `sb_secret_*` value behind that prefix ships your full-database credential to every visitor),
+- referenced in code reachable from the browser bundle.
+
+If a `sb_secret_*` value is ever pasted into a `NEXT_PUBLIC_*` env var, written to a committed file, or pasted in chat — treat it as a **leaked credential**: rotate the key in the Supabase dashboard FIRST, fix the code SECOND.
+
+Browser code uses the **publishable key** + the user's session only.
 
 ```ts
-// BAD — leaks service role into client bundle
+// BAD — leaks the secret key into the client bundle
 "use client";
 import { createClient } from "@supabase/supabase-js";
-const supabase = createClient(URL, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+const supabase = createClient(URL, process.env.SUPABASE_SECRET_KEY!);
+
+// ALSO BAD — same leak, just dressed up under a NEXT_PUBLIC_ name
+// (Next.js inlines NEXT_PUBLIC_* values into the browser bundle.)
+const supabase = createClient(URL, process.env.NEXT_PUBLIC_SUPABASE_SECRET_KEY!);
 
 // GOOD — server-only module (route handler / server action / edge function)
 import { createClient } from "@supabase/supabase-js";
-export const adminClient = createClient(URL, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+export const adminClient = createClient(URL, process.env.SUPABASE_SECRET_KEY!);
 ```
 
 ## Webhook handlers

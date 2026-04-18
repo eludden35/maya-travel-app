@@ -6,13 +6,14 @@ alwaysApply: true
 # Project core
 
 - **Public product name:** **Jettison.** Use this name in user-facing copy, marketing, and metadata. **Repo folder** `maya-travel-app` and **Beads prefix** `tripplanner` are legacy/internal — both are scheduled to be renamed (see follow-ups of `tripplanner-a8c`). Do not let them leak into user-visible surfaces. Never use the verb "jettison" in transactional UI strings — reserve the verb for marketing voice only.
+- **Product framing (social-first):** Jettison is **a social network for group travel with payments built in** — discover trips worth joining, plan them together, split the money. Recorded in [`docs/adr/0002-social-vision-pivot.md`](../../docs/adr/0002-social-vision-pivot.md). MVP is the coupled social + payments surface; lawyer-reviewed ToS and 24/7 trust & safety ops are deferred to Phase 2 with explicit MAU gates. Two hard rules from the ADR carry through every chunk: (1) **money data is never readable by non-trip-members regardless of social grant**, and (2) **every uploaded image is pre-moderated and invisible until approved.**
 - **Backend (locked):** Supabase — Auth, Postgres, RLS. **Web framework / styling / hosting are TBD** until scaffolded; recommended baseline is Next.js App Router + TypeScript + Tailwind + `@supabase/ssr` + Vercel.
 - **Delivery:** **mobile-first web app**. Design and ship for narrow viewports first; tablet/desktop are progressive enhancement.
-- **Design quality bar:** **exceptionally creative and visually distinctive** — never generic SaaS template, never AI-default aesthetics. Creativity must coexist with usability, contrast, and accessibility. See `project-creative-design.mdc` and the `project-ui-ux` skill.
+- **Design quality bar:** **exceptionally creative and visually distinctive** — never generic SaaS template, never AI-default aesthetics, never a Facebook/Instagram visual clone on social surfaces. Creativity must coexist with usability, contrast, and accessibility. See `project-creative-design.mdc` (incl. the "reference patterns, never copy visuals" rule for social surfaces) and the `project-ui-ux` skill (incl. "Social surfaces — distinctive by default").
 
 ## Discipline
 
-- **MVP fit:** every change must move the MVP forward (trips → people → costs → split → pay). No drive-by features.
+- **MVP fit:** every change must move the MVP forward on one of the two coupled loops — **money** (trip → people → costs → split → pay) or **social** (profile → follow → in-trip post (pre-moderated) → feed/explore → join request → DM (mutual-context only)). No drive-by features. Phase 2 work (lawyer ToS, 24/7 ops, algorithmic ranking, stories/live/influencer) is gated by MAU criteria in ADR 0002 — don't pull forward.
 - **Simplicity + minimal blast radius:** smallest change that solves the problem; touch only what is necessary. See `project-workflow.mdc`.
 - **Prefer existing patterns** over inventing new ones — read neighboring code first.
 

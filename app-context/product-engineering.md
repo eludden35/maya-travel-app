@@ -4,9 +4,11 @@ Concise developer-facing complement to [`initial-app-idea.md`](initial-app-idea.
 
 ## What we are building
 
-**Jettison** is a **mobile-first web app** for organizing group trips, splitting shared costs, and moving money to organizers or directly to venues.
+**Jettison** is a **mobile-first web app** that is **a social network for group travel with payments built in** — discover trips worth joining with the people you actually know, plan them together, and split the money so no one fronts the bill.
 
-> _Jettison is the mobile-first way for groups to plan, split, and settle shared trips and events — so no one fronts the money or chases anyone afterward._
+> _Jettison is the social network for group travel — discover trips worth joining with the people you actually know, plan them together, and split the money so no one fronts the bill._
+
+**Vision pivot (2026-04-18):** the original framing of Jettison as a transactional payments app with social explicitly OUT of MVP was reframed mid-development to a **social-first product**. Recorded in [`docs/adr/0002-social-vision-pivot.md`](../docs/adr/0002-social-vision-pivot.md). Read that ADR before scoping any social work — it carries the moderation hard-rules and the Phase 2 gate criteria.
 
 ## Brand
 
@@ -24,29 +26,120 @@ Concise developer-facing complement to [`initial-app-idea.md`](initial-app-idea.
 
 | Term | Meaning |
 |------|--------|
-| **Trip** | A bounded plan with participants, costs, and an organizer. |
-| **Member** | A user attached to a trip in some role (organizer, participant, viewer). |
-| **Organizer** | The member who creates the trip and (typically) coordinates payments. |
-| **Expense** | A shared cost on a trip (hotel, venue, transport, food). |
-| **Share** | A member's portion of an expense. |
-| **Payout** | A money movement: member → organizer, member → venue, or organizer → venue. |
+| **Profile** | A user's public identity — handle, display name, avatar, bio. One per `auth.users` row. Avatars go through the image moderation pipeline. |
+| **Follow** | A directed (asymmetric) edge between two Profiles. No symmetric "friend request"; A following B does not imply B follows A. |
+| **Trip** | A bounded plan with participants, costs, and an organizer. Carries a `visibility` enum: `private` \| `unlisted` \| `public`. |
+| **Visibility** | The reach of a Trip and its non-money content. `private` = members only; `unlisted` = link-shareable but not in explore; `public` = world-readable + appears in explore. **Money data is never publicly readable, regardless of visibility.** |
+| **Member** | A Profile attached to a Trip in some role (organizer, participant, viewer). |
+| **Organizer** | The Member who creates the trip and (typically) coordinates payments and approves join requests. |
+| **Join request** | A request from a non-member Profile to join a `public` (or shared `unlisted`) Trip. Default = approval-required by the organizer. |
+| **Expense** | A shared cost on a trip (hotel, venue, transport, food). Money. Members-only. |
+| **Share** | A member's portion of an expense. Money. Members-only. |
+| **Payout** | A money movement: member → organizer, member → venue, or organizer → venue. Money. Members-only. |
 | **Venue** | A vendor that may eventually receive payments directly. |
+| **Post** | A piece of in-trip content (text + optional photos) authored by a Member, attached to a Trip. State: `pending_media` \| `pending_review` \| `published` \| `rejected`. Inherits the parent Trip's visibility for its readable audience. |
+| **Comment** | A reply on a Post. Text only at MVP (no inline media). |
+| **Reaction** | A small custom-illustrated travel-themed glyph (3–5 total) attached to a Post by a Profile. Not thumbs-up / heart / emoji. |
+| **Notification** | An in-app notification row delivered to a Profile (new follower, post published, post rejected, comment, reaction, payment received, join request, new DM). |
+| **DM (Direct Message)** | A 1:1 conversation between two Profiles, **gated** by mutual-follow OR shared trip OR open join request. Cold DMs from strangers are not possible. |
+| **Moderation Decision** | A row recording a moderator's `approve` or `reject` ruling on an uploaded image, with a reason code from a fixed list. Audit-grade. |
+| **Report** | A user-filed complaint against a Post, Comment, Profile, Trip, or DM. Funnels into the same moderator queue as image-review escalations. |
+| **Block** | A directional relationship: blocker hides all of blocked's content; blocked cannot DM blocker; mutual invisibility on each other's profiles. |
+| **Mute** | A directional relationship: muter silently hides muted's content from feeds; muted is not notified; both sides can still interact normally otherwise. |
 
 These names are stable language — use them in code, schema, UI copy (when neutral), and Beads issues.
 
 ## In scope (MVP)
 
+**Social platform foundation:**
+
+- Profiles with handles, display names, avatars (avatars pre-moderated), bios.
+- Asymmetric follow graph.
+- Trip visibility model (`private` \| `unlisted` \| `public`) with RLS that distinguishes member content from world-readable content.
+- In-trip Posts (text + photos) with photo pre-moderation; comments; reactions.
+- Followers feed (chronological, no algorithm).
+- Explore tab (public trips, recent + popular ranking, no algorithm).
+- Join requests with approval-required default; per-trip auto-approve flag exists but is feature-flagged off at launch.
+- DMs with mutual-context gating (mutual-follow OR shared trip OR open join request).
+- Notifications.
+- Block + mute + report; rate limiting on writeable surfaces.
+- Founder-only manual moderator queue UI; CSAM scanning integration.
+
+**Payments:**
+
 - Create a trip and invite members.
 - Add expenses and split them (equal or custom shares).
-- Track who paid what and who owes whom.
+- Track who paid what and who owes whom (members-only views).
 - Move money: member → organizer (peer flow). Venue payouts behind a feature flag.
 
 ## Out of scope (MVP)
 
 - BNPL / financing flows.
-- Heavy social feed, public trips, discovery.
 - Native mobile clients (Expo/React Native).
 - Vendor onboarding marketplace UX.
+- Stories / ephemeral content, live video, influencer monetization tools, algorithmic feed ranking.
+
+## Deferred to Phase 2 (gate-criterion driven)
+
+Each item below is **not** in MVP, but is filed as a P3 Bead under the Phase 2 epic with a numeric gate criterion (full criteria in [`docs/adr/0002-social-vision-pivot.md`](../docs/adr/0002-social-vision-pivot.md)):
+
+- **Lawyer-reviewed ToS + Community Guidelines + privacy policy** — gate: 5,000 MAU OR first abuse incident with material exposure.
+- **Dedicated trust & safety operating model** (24/7 triage, on-call, formal SLAs, secondary moderator hires) — gate: 25,000 MAU OR ToS lawyer recommends earlier.
+- **Algorithmic feed ranking** (replaces chronological) — gate: chronological feed measurably hurting retention.
+- **Stories / ephemeral content, live video, influencer monetization tools** — no hard gate; re-evaluate post-MVP.
+
+## Trust and money boundaries (security)
+
+These are **non-negotiable** and reflected in [`.cursor/rules/supabase-security.mdc`](../.cursor/rules/supabase-security.mdc):
+
+- **RLS on by default** for every user-facing table; policies ship in the same migration as the table.
+- **Supabase service role key** is server-side only. It must **never** be imported by a `"use client"` module or any browser bundle.
+- **Webhook secrets** (Stripe or otherwise) live in server env only. Webhook handlers must be **idempotent** (use the provider's idempotency key + a dedicated table or unique index).
+- **Never log** full PAN-like fields, raw card data, or full webhook payloads containing secrets.
+
+### Public vs private content (hard rules from ADR 0002)
+
+The introduction of public Trips, public Posts, and public Profiles changes the RLS surface materially. These rules survive every future migration unless explicitly superseded by another ADR:
+
+- **Posts inherit the parent Trip's visibility.** A Post in a `private` Trip is members-only. A Post in a `public` Trip is world-readable (subject to per-author privacy settings and the moderation pipeline below).
+- **Money data is never readable by non-trip-members.** `expenses`, `expense_shares`, `payouts`, and any future monetary table are restricted to trip members **regardless of trip visibility, follower relationship, or any other social grant.** Public trips show itinerary, photos, and posts — they never expose amounts owed or paid. This is the hardest line in the system; it's also a checklist item in [`.cursor/rules/project-review-checklist-sql.mdc`](../.cursor/rules/project-review-checklist-sql.mdc).
+- **Profiles are world-readable by default.** Users can flip a settings toggle to "followers + co-trip-members only" (toggle is P2; the column ships in MVP).
+- **Pending images are visible only to the uploader and the moderator role.** See "Image moderation pipeline" below.
+
+### Image moderation pipeline (hard rule from ADR 0002)
+
+**Every uploaded image is pre-moderated and invisible to anyone but the uploader until a human moderator approves it.** Applies to Post images, Profile avatars, and any future user-uploaded image. Text content (Posts, Comments, DMs) is not pre-moderated in MVP — only images.
+
+```text
+[upload]
+   ↓
+[server-side EXIF GPS strip]   (privacy floor)
+   ↓
+[CSAM scan]                    (vendor TBD: Sightengine / Hive / PhotoDNA partner)
+   ↓
+[image row → pending_review, parent Post → pending_media, file → private storage path]
+   ↓
+[manual moderator review in founder-only queue UI]
+   ↓
+   ├── approve → file → public storage path, Post → published, notifications fire
+   └── reject  → uploader notified with reason code; file retained for audit window then deleted
+```
+
+**Two-tier Supabase Storage paths** are the enforcement primitive: a private `pending/` bucket whose RLS allows only the uploader and the moderator role to read; a public `approved/` bucket whose URLs only exist after a moderator approves. Architecture-skill walks through the state machine and the RLS sketches.
+
+**CSAM scanning** and the **manual moderator queue UI** are P0 gates with the `gate` + `moderation` Beads labels. Posts cannot ship before both gates close. Any future relaxation requires an ADR superseding 0002.
+
+**AI auto-classification** (filed as a P1 follow-up Bead, vendor TBD) raises throughput by auto-approving high-confidence safe images and routing ambiguous cases to the human queue. **The human floor never goes away** — AI is a top-of-funnel filter, not a replacement for human review.
+
+### DM gating rule (hard rule from ADR 0002)
+
+A Profile A may DM Profile B if and only if **at least one** of the following is true:
+
+1. A and B mutually follow each other, OR
+2. A and B are both members of at least one shared Trip, OR
+3. There is an open join request between A and B (in either direction).
+
+Cold DMs from strangers are not possible. UI copy framing this is **warm not punitive** — "You can write to people you both follow, share a trip with, or have a join request with" — never "blocked" or "denied." Implementation lands as a SQL function (or RLS predicate) resolving membership against the `follows`, `trip_members`, and `join_requests` tables.
 
 ## Trust and money boundaries (security)
 
@@ -181,8 +274,8 @@ Distinction comes from: typography, color rhythm, spacing system, intentional mo
 ## Architecture sketch
 
 - **Source of truth:** Supabase Postgres. Other systems (payment provider, email) are integrators.
-- **Server boundary:** secret-bearing operations run as Next.js **Server Components**, **Server Actions**, **Route Handlers**, or **[`proxy.ts`](../proxy.ts)** (Next.js 16 — the successor to `middleware.ts`) — never in a `"use client"` module. `SUPABASE_SERVICE_ROLE_KEY` and any other server secret stays out of the client bundle by file convention (see [`.cursor/rules/typescript-react.mdc`](../.cursor/rules/typescript-react.mdc)).
-- **Client:** the browser holds only the Supabase **anon key** and per-user session cookies. `lib/supabase/client.ts` (browser) reads the anon key; `lib/supabase/server.ts` reads the same anon key plus cookies; service-role access lives in clearly named server-only modules (added when needed).
+- **Server boundary:** secret-bearing operations run as Next.js **Server Components**, **Server Actions**, **Route Handlers**, or **[`proxy.ts`](../proxy.ts)** (Next.js 16 — the successor to `middleware.ts`) — never in a `"use client"` module. The Supabase **secret key** (`SUPABASE_SECRET_KEY`, `sb_secret_*`; legacy: `SUPABASE_SERVICE_ROLE_KEY`) and any other server secret stays out of the client bundle by file convention (see [`.cursor/rules/typescript-react.mdc`](../.cursor/rules/typescript-react.mdc)). **Hard rule:** a `sb_secret_*` value behind a `NEXT_PUBLIC_*` env name is a leaked credential — `NEXT_PUBLIC_*` is inlined into the browser bundle.
+- **Client:** the browser holds only the Supabase **publishable key** (`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `sb_publishable_*`) and per-user session cookies. `lib/supabase/client.ts` (browser) reads the publishable key; `lib/supabase/server.ts` reads the same publishable key plus cookies; secret-key access lives in clearly named server-only modules (added when needed).
 - **Session refresh:** [`proxy.ts`](../proxy.ts) → [`lib/supabase/middleware.ts`](../lib/supabase/middleware.ts) calls `supabase.auth.getUser()` on every request that isn't a static asset.
 - **Background work:** kept minimal at MVP — webhooks + DB triggers for now, no separate worker.
 
@@ -193,3 +286,6 @@ Distinction comes from: typography, color rhythm, spacing system, intentional mo
 - Visual mark design (logo, wordmark, favicon, app shortcut executing the JTSN secondary-mark role) — follow-up of `tripplanner-tw8`.
 - Spec-level color + type lock (final hex ramp with WCAG AA verified, font weights + license) — follow-up of `tripplanner-tw8`, now unblocked by the locked styling stack (Tailwind v4 + `@theme`).
 - Rename repo folder + npm package + Beads prefix to align with **Jettison** — follow-ups of `tripplanner-a8c`.
+- **CSAM-scanning vendor** (Sightengine / Hive / Microsoft PhotoDNA partner) — chosen by the CSAM-integration implementation Bead; cost + latency + audit-log shape inform the choice.
+- **AI auto-classification vendor + decision threshold** (which model, what confidence threshold for auto-approve, how ambiguous cases are routed) — chosen by the AI auto-classification follow-up Bead.
+- **Moderator-queue scaling plan** beyond the founder — at what volume do we hire a contract moderator, what training do they need, what does on-call rotation look like? Tracked under the Phase 2 epic.

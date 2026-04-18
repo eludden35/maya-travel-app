@@ -5,10 +5,20 @@ Single entry point for humans and AI agents working in this repo.
 ## Product
 
 - **Public product name: Jettison.** Name-of-record in code, copy, and metadata is the full word **Jettison**. The stylized abbreviation **`JTSN` is the secondary mark** — used for tight surfaces (favicon, app shortcut, social avatar, monogram lockups) where the full wordmark won't read. It is **not** the primary wordmark.
-- **Positioning (one-liner):** _Jettison is the mobile-first way for groups to plan, split, and settle shared trips and events — so no one fronts the money or chases anyone afterward._
+- **Positioning (one-liner):** _Jettison is the social network for group travel — discover trips worth joining with the people you actually know, plan them together, and split the money so no one fronts the bill._
 - **Naming notes:** Repo folder `maya-travel-app` and Beads issue prefix `tripplanner` are **legacy / internal** — both are scheduled to be renamed (see follow-up Beads from `tripplanner-a8c`). Do not let them leak into user-facing surfaces. Never use the verb "jettison" in transactional UI copy ("Jettison your share" reads as *throw it away*); reserve the verb for marketing only.
-- **MVP scope:** create trip → add people → add costs → everyone pays their share → money flows to organizer or venue.
-- **Out of scope (MVP):** social feed, public trips, BNPL, native mobile clients (Expo/React Native).
+- **Vision pivot (2026-04-18):** Jettison is now framed as **a social network for group travel with payments built in**, not a transactional payments app with social bolted on. Recorded in [`docs/adr/0002-social-vision-pivot.md`](docs/adr/0002-social-vision-pivot.md). Read that ADR before scoping anything in the social surface — it carries the moderation hard-rules and the Phase 2 gate criteria.
+- **MVP scope (social-first):**
+  - Profiles (handle, display name, avatar, bio) and asymmetric follow graph.
+  - Trip visibility model (`private` | `unlisted` | `public`) — public trips appear in the explore feed and accept join requests (approval-required by default).
+  - In-trip Posts (text + photos), comments, reactions; followers feed (chronological); explore tab (recent + popular, no algorithm).
+  - DMs with **mutual-context gating** (mutual-follow OR shared trip OR open join request — no cold DMs from strangers).
+  - **Strict pre-moderation on every uploaded image:** EXIF GPS strip → CSAM scan → manual moderator review → publish. No image is visible to anyone but the uploader until approved. Founder-triaged at MVP via a lightweight admin queue UI; AI auto-classification is a P1 follow-up that raises throughput, never lowers the safety floor.
+  - Notifications (new follower, post published, post rejected, comment, reaction, payment received, join request, new DM).
+  - Block + mute + report primitives; rate limiting on writeable surfaces.
+  - The original payments flow: create trip → add people → add costs → everyone pays their share → money flows to organizer or venue.
+- **Money privacy hard rule:** money data (`expenses`, `expense_shares`, `payouts`, anything monetary) is **never** readable by non-trip-members regardless of trip visibility, follower relationship, or any other social grant. Public trips show itinerary, photos, and posts — never amounts.
+- **Out of scope (MVP):** BNPL, native mobile clients (Expo/React Native), vendor onboarding marketplace UX, stories/ephemeral content, live video, influencer monetization, algorithmic feed ranking. Lawyer-reviewed ToS and 24/7 trust & safety ops are **deferred to Phase 2** with explicit MAU gates (5k / 25k) recorded in ADR 0002.
 
 ## Delivery
 
@@ -36,6 +46,7 @@ For App Router conventions (Server Components default, Server Actions, Route Han
 - **Install (pinned):** `brew install beads` on macOS; upstream curl script as a Linux/CI fallback.
 - **Version major:** TBD on first run — pin **either** `bd` 0.49.x **or** 0.50+ (Dolt-backed) here once chosen, and stick with it.
 - **Daily commands:** `bd ready` (unblocked work), `bd create … --json`, `bd show <id> --json`, `bd update --claim`. Prefer `--json` for any scripted/agent use.
+- **Known `bd` caveat:** `bd ready` currently surfaces issues that are explicitly `blocked-by` an open issue (cache/derived-fields bug — tracked as `tripplanner-3uu`). Treat `bd dep list <id>` and the `dependencies` array on `bd show --json` as the source of truth for what is actually blocked; do not rely on `bd ready` alone when a blocker has been declared.
 - **Do not** create a root `TODO.md` or any other ad-hoc backlog file. The only blessed markdown task surface is [`tasks/todo.md`](tasks/todo.md) (session scratchpad — see below).
 
 ## Session workflow
