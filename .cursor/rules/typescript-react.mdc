@@ -28,12 +28,18 @@ Pairs with [`project-review-checklist-ts.mdc`](./project-review-checklist-ts.mdc
 
 ## Hard rule: server secrets stay server-side
 
-`SUPABASE_SERVICE_ROLE_KEY` (and any other server-only secret — payment provider keys, webhook signing secrets, internal API tokens) **must not be reachable from the client bundle**. Specifically:
+Supabase's server-only secret key (current name **`SUPABASE_SECRET_KEY`** with `sb_secret_*` value; legacy name `SUPABASE_SERVICE_ROLE_KEY`) and every other server-only secret — payment provider keys, webhook signing secrets, internal API tokens — **must not be reachable from the client bundle**. Specifically:
 
-- Do **not** import `process.env.SUPABASE_SERVICE_ROLE_KEY` (or any module that does) from a file with `"use client"` at the top, or from a file that is imported by such a file.
-- Do **not** put server secrets behind a `NEXT_PUBLIC_*` name. `NEXT_PUBLIC_*` is **inlined into the browser bundle by definition** — that's the whole point of the prefix.
-- Service-role access lives in clearly named server-only modules (e.g. `lib/supabase/admin/*`). The browser-side client (`lib/supabase/client.ts`) reads only the anon key.
-- The boundary check in CI / verification (`rg "SUPABASE_SERVICE_ROLE_KEY" app/ components/ lib/`) MUST return matches only in files that do **not** contain `"use client"`, AND only via `process.env`, never as a string literal.
+- Do **not** import `process.env.SUPABASE_SECRET_KEY` / `process.env.SUPABASE_SERVICE_ROLE_KEY` (or any module that does) from a file with `"use client"` at the top, or from a file that is imported by such a file.
+- Do **not** put server secrets behind a `NEXT_PUBLIC_*` name. `NEXT_PUBLIC_*` is **inlined into the browser bundle by definition** — that's the whole point of the prefix. A `sb_secret_*` value behind `NEXT_PUBLIC_*` is a leaked database credential; rotate the key in Supabase and fix the env var name.
+- Server-only access lives in clearly named modules (e.g. `lib/supabase/admin/*`). The browser-side client (`lib/supabase/client.ts`) reads only the publishable key (`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `sb_publishable_*`).
+- The boundary check in CI / verification MUST return matches only in files that do **not** contain `"use client"`, AND only via `process.env`, never as a string literal:
+
+```bash
+rg -n 'SUPABASE_SECRET_KEY|SUPABASE_SERVICE_ROLE_KEY|sb_secret_' app/ components/ lib/ proxy.ts
+```
+
+If a `sb_secret_*` literal ever appears anywhere in the repo (or a `_KEY` env var name appears under `NEXT_PUBLIC_*`), treat it as a leaked-credential incident: **rotate the key in Supabase first, fix the code second.**
 
 If you are unsure where a piece of logic should live, **default to server** and put a thin `"use client"` shell around the parts the user actually clicks.
 

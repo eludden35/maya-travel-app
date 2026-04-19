@@ -7,18 +7,22 @@ description: Repo-specific Supabase conventions for migrations, RLS, type genera
 
 This is the **repo-specific** layer. For deep platform patterns (auth flows, SSR cookies, edge functions) load the **workspace Supabase skill** first.
 
-## Env vars (placeholders until the project ref is created)
+## Env vars
 
-Use these names in code; the values land in `.env.local` (gitignored) and the deploy environment.
+Use these names in code; the values land in `.env.local` (gitignored) and the deploy environment. Naming follows Supabase's new API-key system (`sb_publishable_*` / `sb_secret_*`); the legacy JWT keys (`anon`, `service_role`) still work and are listed for repos that haven't migrated.
 
-| Var | Where it lives | Allowed in browser? |
-|-----|----------------|---------------------|
-| `NEXT_PUBLIC_SUPABASE_URL` (or framework-equivalent public url) | Server **and** client | Yes |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` (or framework-equivalent public anon key) | Server **and** client | Yes |
-| `SUPABASE_SERVICE_ROLE_KEY` | **Server only** (route handlers, server actions, edge functions) | **No — never** |
-| `SUPABASE_JWT_SECRET` (if needed) | Server only | No |
+| Var | Value shape | Where it lives | Allowed in browser? |
+|-----|-------------|----------------|---------------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://<ref>.supabase.co` | Server **and** client | Yes |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` _(new)_ | `sb_publishable_...` | Server **and** client | Yes |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` _(legacy)_ | JWT (`eyJ...`) | Server **and** client | Yes |
+| `SUPABASE_SECRET_KEY` _(new)_ | `sb_secret_...` | **Server only** (route handlers, server actions, edge functions) | **No — never** |
+| `SUPABASE_SERVICE_ROLE_KEY` _(legacy)_ | JWT (`eyJ...`) | **Server only** | **No — never** |
+| `SUPABASE_JWT_SECRET` (if needed) | JWT secret | Server only | No |
 
-Replace `NEXT_PUBLIC_*` with the framework's public-prefix when not on Next; the **trust boundary stays the same**: anon key in browser, service role server-only.
+Pick **one naming per project** and stick with it; mixing both invites confusion. Jettison uses the new naming (`PUBLISHABLE_KEY` / `SECRET_KEY`) — see [`.env.local.example`](../../.env.local.example).
+
+Replace `NEXT_PUBLIC_*` with the framework's public-prefix when not on Next; the **trust boundary stays the same**: publishable key in browser, secret key server-only. **A `sb_secret_*` value behind a `NEXT_PUBLIC_*` name is a leaked credential** — Next.js inlines `NEXT_PUBLIC_*` into the browser bundle. Rotate the key in Supabase and fix the env name.
 
 ## Local + linked workflow
 
@@ -68,9 +72,9 @@ create index expenses_trip_id_idx on expenses (trip_id);
 
 ## Auth boundary
 
-- Browser code uses the **anon key** + the user session. No service-role calls.
-- Server code (route handlers, server actions, edge functions, webhooks) is the **only** place `SUPABASE_SERVICE_ROLE_KEY` may appear.
-- Once the framework is chosen, **pin the cookie / session strategy** here (e.g. `@supabase/ssr` for Next App Router, `supabase-js` browser-only for Vite SPA).
+- Browser code uses the **publishable key** (or legacy anon key) + the user session. No secret-key / service-role calls.
+- Server code (route handlers, server actions, edge functions, webhooks) is the **only** place `SUPABASE_SECRET_KEY` (or legacy `SUPABASE_SERVICE_ROLE_KEY`) may appear.
+- For Jettison: **`@supabase/ssr`** (Next.js App Router) is the cookie / session strategy. The session-refresh interceptor is `proxy.ts` at the repo root (Next.js 16's successor to `middleware.ts`).
 
 ## RLS review pointers
 
