@@ -21,6 +21,11 @@ import { createClient } from "@/lib/supabase/server";
 
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 
+export type DiscoverableProfile = Pick<
+  ProfileRow,
+  "id" | "handle" | "display_name" | "bio"
+> & { isFollowing: boolean };
+
 export type CreateProfileResult =
   | { ok: true }
   | { ok: false; error: "invalid_handle" | "invalid_display_name" | "handle_taken" | "unauthorized" | "unknown" };
@@ -195,4 +200,59 @@ export async function updateProfile(input: {
     return { ok: false, error: "unknown" };
   }
   return { ok: true };
+}
+
+/**
+ * List up to `limit` other discoverable profiles, annotated with whether the
+ * given viewer already follows each one. Used by the home-page "People to
+ * follow" section (Bead tripplanner-s3a.2). Two indexed queries merged in TS;
+ * cheap at MVP volumes and avoids inventing a custom RPC.
+ */
+export async function listDiscoverableProfilesExcluding(
+  viewerId: string,
+  limit: number,
+): Promise<DiscoverableProfile[]> {
+  const supabase = await createClient();
+
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles")
+    .select("id, handle, display_name, bio")
+    .eq("is_discoverable", true)
+    .neq("id", viewerId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (profilesError) {
+    console.error(
+      "listDiscoverableProfilesExcluding profiles query failed",
+      profilesError.message,
+    );
+    return [];
+  }
+  if (!profiles || profiles.length === 0) {
+    return [];
+  }
+
+  const ids = profiles.map((p) => p.id);
+  const { data: edges, error: edgesError } = await supabase
+    .from("follows")
+    .select("followee_id")
+    .eq("follower_id", viewerId)
+    .in("followee_id", ids);
+
+  if (edgesError) {
+    console.error(
+      "listDiscoverableProfilesExcluding follows query failed",
+      edgesError.message,
+    );
+  }
+  const following = new Set((edges ?? []).map((e) => e.followee_id));
+
+  return profiles.map((p) => ({
+    id: p.id,
+    handle: p.handle,
+    display_name: p.display_name,
+    bio: p.bio,
+    isFollowing: following.has(p.id),
+  }));
 }
