@@ -171,12 +171,42 @@ export type Database = {
         }
         Relationships: []
       }
+      rate_limit_counters: {
+        Row: {
+          count: number
+          profile_id: string
+          surface: string
+          window_start: string
+        }
+        Insert: {
+          count?: number
+          profile_id: string
+          surface: string
+          window_start: string
+        }
+        Update: {
+          count?: number
+          profile_id?: string
+          surface?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       is_moderator: { Args: { profile_id: string }; Returns: boolean }
+      try_consume_rate_limit: {
+        Args: {
+          p_max: number
+          p_profile_id: string
+          p_surface: string
+          p_window_seconds: number
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

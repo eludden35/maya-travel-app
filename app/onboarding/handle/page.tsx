@@ -106,6 +106,8 @@ function errorMessageFor(code: string | undefined): string | null {
       return "Display name must be 1–50 characters.";
     case "unauthorized":
       return "You need to be signed in to do that.";
+    case "rate_limited":
+      return "Too many tries. Take a breath and try again in a few minutes.";
     case "unknown":
       return "Something went wrong. Please try again.";
     default:
