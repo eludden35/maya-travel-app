@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { requireProfile } from "@/lib/profiles";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -9,6 +10,10 @@ import { createClient } from "@/lib/supabase/server";
  * server-side Supabase pattern works end-to-end (cookies -> server client ->
  * `getUser()` -> server-rendered HTML). When real DB tables and trips exist,
  * this becomes the trip-list dashboard.
+ *
+ * Onboarding gate: signed-in users without a Profile row are redirected to
+ * `/onboarding/handle` by `requireProfile()` (Bead tripplanner-s3a.1). New
+ * users land here, get bounced to onboarding, pick a handle, and come back.
  *
  * The big "$0" numeral is intentional — it validates that the Fraunces +
  * Inter pairing actually loaded and that the Tailwind tokens
@@ -21,6 +26,8 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const profile = user ? await requireProfile() : null;
+
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-6 py-12 bg-paper text-ink">
       <div className="w-full max-w-sm flex flex-col items-center gap-10 text-center">
@@ -29,11 +36,11 @@ export default async function Home() {
             Jettison
           </p>
           <h1 className="font-display text-4xl leading-tight">
-            {user ? `Hello, ${user.email}` : "Welcome"}
+            {profile ? `Hello, ${profile.display_name}` : "Welcome"}
           </h1>
           <p className="text-secondary">
-            {user
-              ? "You're signed in. The real product is coming."
+            {profile
+              ? `Signed in as @${profile.handle}. The real product is coming.`
               : "Sign in to see your trips and balances."}
           </p>
         </header>
@@ -55,7 +62,7 @@ export default async function Home() {
           </p>
         </section>
 
-        {user ? (
+        {profile ? (
           <form
             action="/auth/sign-out"
             method="post"
