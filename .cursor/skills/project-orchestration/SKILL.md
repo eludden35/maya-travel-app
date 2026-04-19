@@ -31,6 +31,18 @@ Rules:
 - For hard problems prefer **multiple parallel passes** over one overloaded thread.
 - Keep the **main thread for integration and decisions**.
 
+## Parallel chunks (≥2 chunks shipped concurrently by subagents)
+
+When the user asks for parallel chunks (or you propose them), follow this contract — it is the load-bearing piece, not a nice-to-have. Lesson [`tasks/lessons.md` 2026-04-19](../../../tasks/lessons.md) is the canonical case study.
+
+1. **Strict file-scope contract per chunk.** Each subagent gets two explicit lists in its prompt: **OWNS** (files it may create or modify) and **MUST NOT TOUCH** (everything else, plus an explicit call-out for `supabase/migrations/*` files that already exist — those are immutable). Zero file overlap across chunks. If two chunks both want the same file, sequence them; do not parallelize them.
+2. **Pre-allocate migration timestamps** before launching subagents so the parallel migrations cannot collide on filenames. Example: `20260419190000_chunk_a.sql`, `20260419190100_chunk_b.sql`, `20260419190200_chunk_c.sql` — keep them strictly increasing in the order the parent agent will push them.
+3. **Subagents stop before orchestration.** They implement, run local `pnpm tsc --noEmit` + `pnpm lint`, and report back. They do **not** run `supabase db push`, do **not** regenerate `database.types.ts`, do **not** create commits. The parent agent sequences those steps **once**, in dependency order, after every subagent has reported back. Concurrent `db push` or concurrent type-regen would corrupt shared state.
+4. **Temp-type workarounds get removed in the same orchestration pass that regenerates types.** If a subagent needed a local type-narrowing cast or `AugmentedDatabase` to type-check before its migration's types existed, the parent agent removes those workarounds *immediately after* type regeneration and re-runs `tsc + lint` before committing. Never carry a temp-type cast into a commit.
+5. **File honest-deferrals as real Beads with `--blocked-by` linkage.** When a chunk's AC has lines that must be deferred because they would have overlapped files with a parallel chunk in flight, file a follow-up Bead with `--blocked-by` pointing at the chunk that surfaced the deferral, and `--discovered-from` pointing at the chunk that surfaced it. Append mirroring notes to any downstream Beads that the deferred wiring will eventually have to honor.
+6. **Three-way split of `database.types.ts`.** When ≥2 parallel chunks add to the same regenerated `database.types.ts`, split the diff across commits using `git add -p`. Each commit's checkout must `tsc` cleanly in isolation — the table types and function signatures a chunk's `lib/*` modules consume must land in the same commit as those modules.
+7. **Commit one chunk at a time, in dependency order.** If chunk B's policy extension supersedes a `TODO(chunk-B)` marker that chunk A left in a historical migration, B's commit lands after A's. The historical migration file is **never** modified — close the seam in B's new migration via `drop policy / create policy`.
+
 ## Self-improvement loop
 
 On any user correction:

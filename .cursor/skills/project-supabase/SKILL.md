@@ -36,6 +36,14 @@ supabase gen types typescript --linked > types/supabase.ts
 
 Commit generated types. Reviewers should reject `any` or hand-rolled DB row types when generated types are available.
 
+## Migration immutability
+
+**Once a migration file under `supabase/migrations/` has been applied (locally or to the linked project), it is immutable.** Don't edit it — not even comments. Supabase tracks each migration by its file hash; modifying an applied migration produces a hash mismatch on the next `supabase db push`, breaking other developers' machines and CI.
+
+When you need to "close" a `TODO(<future-bead>)` marker that a previous migration left in a policy / function / trigger, do it by adding a **new** migration that does `drop policy / create policy` (or `create or replace function`, or `drop trigger / create trigger`). The historical migration file stays untouched; the new migration's header comment records that it supersedes the older marker. The grep-able `TODO(<future-bead>)` comment in the historical file is a feature — it documents a deliberate seam, not a bug.
+
+For parallel-chunk discipline (multiple chunks adding migrations concurrently), see the **Parallel chunks** section of [`project-orchestration`](../project-orchestration/SKILL.md).
+
 ## New table → checklist
 
 For every new user-facing table, in **the same migration**:
