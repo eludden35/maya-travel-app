@@ -1,6 +1,8 @@
 import Link from "next/link";
 
+import { BlockLink } from "@/app/_components/block-link";
 import { FollowButton } from "@/app/_components/follow-button";
+import { getBlockedProfileIds } from "@/lib/blocks";
 import { getFollowCounts } from "@/lib/follows";
 import {
   listDiscoverableProfilesExcluding,
@@ -36,9 +38,16 @@ export default async function Home() {
 
   const profile = await requireProfile();
 
+  // Fetch the caller's blocked-id set first; the discover query uses it to
+  // filter out blocked profiles. Two round-trips, but the home page is
+  // signed-in only and the blocked set is small (Bead tripplanner-s3a.16).
+  const blockedIds = await getBlockedProfileIds(profile.id);
+
   const [counts, discoverable] = await Promise.all([
     getFollowCounts(profile.id),
-    listDiscoverableProfilesExcluding(profile.id, 10),
+    listDiscoverableProfilesExcluding(profile.id, 10, {
+      excludeIds: blockedIds,
+    }),
   ]);
 
   return (
@@ -98,11 +107,18 @@ export default async function Home() {
                       </span>
                     ) : null}
                   </div>
-                  <FollowButton
-                    profileId={p.id}
-                    profileHandle={p.handle}
-                    initiallyFollowing={p.isFollowing}
-                  />
+                  <span className="flex flex-col items-end gap-2">
+                    <FollowButton
+                      profileId={p.id}
+                      profileHandle={p.handle}
+                      initiallyFollowing={p.isFollowing}
+                    />
+                    <BlockLink
+                      profileId={p.id}
+                      profileHandle={p.handle}
+                      initiallyBlocked={false}
+                    />
+                  </span>
                 </li>
               ))}
             </ul>

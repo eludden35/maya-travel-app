@@ -207,18 +207,36 @@ export async function updateProfile(input: {
  * given viewer already follows each one. Used by the home-page "People to
  * follow" section (Bead tripplanner-s3a.2). Two indexed queries merged in TS;
  * cheap at MVP volumes and avoids inventing a custom RPC.
+ *
+ * `opts.excludeIds` lets the caller filter out additional profile ids beyond
+ * the viewer themselves — used by the home page to drop blocked profiles
+ * (Bead tripplanner-s3a.16). The viewer's own id is always excluded; passing
+ * it in `excludeIds` is harmless but redundant.
  */
 export async function listDiscoverableProfilesExcluding(
   viewerId: string,
   limit: number,
+  opts: { excludeIds?: string[] } = {},
 ): Promise<DiscoverableProfile[]> {
   const supabase = await createClient();
 
-  const { data: profiles, error: profilesError } = await supabase
+  const excludeIds = opts.excludeIds ?? [];
+
+  let profilesQuery = supabase
     .from("profiles")
     .select("id, handle, display_name, bio")
     .eq("is_discoverable", true)
-    .neq("id", viewerId)
+    .neq("id", viewerId);
+
+  if (excludeIds.length > 0) {
+    profilesQuery = profilesQuery.not(
+      "id",
+      "in",
+      `(${excludeIds.join(",")})`,
+    );
+  }
+
+  const { data: profiles, error: profilesError } = await profilesQuery
     .order("created_at", { ascending: false })
     .limit(limit);
 
