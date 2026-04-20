@@ -9,6 +9,11 @@ import {
   requireProfile,
 } from "@/lib/profiles";
 import { createClient } from "@/lib/supabase/server";
+import {
+  listTripsForViewer,
+  type TripVisibility,
+  type TripWithMemberCount,
+} from "@/lib/trips";
 
 /**
  * Home / signed-in landing.
@@ -43,11 +48,12 @@ export default async function Home() {
   // signed-in only and the blocked set is small (Bead tripplanner-s3a.16).
   const blockedIds = await getBlockedProfileIds(profile.id);
 
-  const [counts, discoverable] = await Promise.all([
+  const [counts, discoverable, trips] = await Promise.all([
     getFollowCounts(profile.id),
     listDiscoverableProfilesExcluding(profile.id, 10, {
       excludeIds: blockedIds,
     }),
+    listTripsForViewer(profile.id, { limit: 5 }),
   ]);
 
   return (
@@ -70,6 +76,48 @@ export default async function Home() {
             <span className="text-ink">{counts.following}</span> following
           </p>
         </header>
+
+        <section
+          aria-labelledby="your-trips"
+          className="flex flex-col gap-4"
+        >
+          <h2
+            id="your-trips"
+            className="font-mono text-xs uppercase tracking-[0.2em] text-secondary"
+          >
+            Your trips
+          </h2>
+
+          {trips.length === 0 ? (
+            <p className="text-sm text-secondary text-center py-6">
+              No trips yet — trip creation is on the way. When it lands, your
+              trips will appear here.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {trips.map((t) => (
+                <li
+                  key={t.id}
+                  className="flex items-start gap-3 min-h-[44px] rounded-md border border-hairline bg-card p-3"
+                >
+                  <div className="flex flex-col min-w-0 flex-1 gap-1">
+                    <span className="font-display text-base leading-tight truncate">
+                      {t.name}
+                    </span>
+                    <span className="text-sm text-secondary">
+                      {formatTripDates(t.start_date, t.end_date)}
+                    </span>
+                    <span className="font-mono text-xs text-secondary tabular-nums">
+                      {t.memberCount}{" "}
+                      {t.memberCount === 1 ? "member" : "members"}
+                    </span>
+                  </div>
+                  <VisibilityChip visibility={t.visibility} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         <section
           aria-labelledby="people-to-follow"
@@ -152,6 +200,59 @@ export default async function Home() {
       </div>
     </main>
   );
+}
+
+// Visibility chip uses existing color tokens only — no new tokens. Each pill
+// carries its own visible label so meaning never depends on color alone.
+const VISIBILITY_CHIP: Record<
+  TripVisibility,
+  { label: string; className: string }
+> = {
+  private: {
+    label: "Private",
+    className: "bg-paper border border-hairline text-secondary",
+  },
+  unlisted: {
+    label: "Unlisted",
+    className: "bg-card border border-hairline text-ink",
+  },
+  public: {
+    label: "Public",
+    className: "bg-ember/10 border border-ember/30 text-ink",
+  },
+};
+
+function VisibilityChip({ visibility }: { visibility: TripVisibility }) {
+  const chip = VISIBILITY_CHIP[visibility];
+  return (
+    <span
+      className={`shrink-0 font-mono text-[10px] uppercase tracking-[0.15em] px-2 py-1 rounded ${chip.className}`}
+    >
+      {chip.label}
+    </span>
+  );
+}
+
+const TRIP_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+function formatTripDates(
+  startDate: TripWithMemberCount["start_date"],
+  endDate: TripWithMemberCount["end_date"],
+): string {
+  if (!startDate && !endDate) {
+    return "Dates TBD";
+  }
+  if (startDate && endDate) {
+    return `${TRIP_DATE_FORMATTER.format(new Date(startDate))} \u2013 ${TRIP_DATE_FORMATTER.format(new Date(endDate))}`;
+  }
+  if (startDate) {
+    return `From ${TRIP_DATE_FORMATTER.format(new Date(startDate))}`;
+  }
+  return `Until ${TRIP_DATE_FORMATTER.format(new Date(endDate as string))}`;
 }
 
 function AnonymousWelcome() {
