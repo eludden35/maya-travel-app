@@ -105,6 +105,141 @@ export type Database = {
           },
         ]
       }
+      images: {
+        Row: {
+          approved_path: string | null
+          bytes: number
+          created_at: string
+          exif_stripped_at: string
+          height: number | null
+          id: string
+          intended_use: string
+          mime_type: string
+          pending_path: string
+          rejection_reason:
+            | Database["public"]["Enums"]["rejection_reason"]
+            | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          scanned_at: string | null
+          state: Database["public"]["Enums"]["image_state"]
+          uploader_id: string
+          width: number | null
+        }
+        Insert: {
+          approved_path?: string | null
+          bytes: number
+          created_at?: string
+          exif_stripped_at?: string
+          height?: number | null
+          id?: string
+          intended_use: string
+          mime_type: string
+          pending_path: string
+          rejection_reason?:
+            | Database["public"]["Enums"]["rejection_reason"]
+            | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          scanned_at?: string | null
+          state?: Database["public"]["Enums"]["image_state"]
+          uploader_id: string
+          width?: number | null
+        }
+        Update: {
+          approved_path?: string | null
+          bytes?: number
+          created_at?: string
+          exif_stripped_at?: string
+          height?: number | null
+          id?: string
+          intended_use?: string
+          mime_type?: string
+          pending_path?: string
+          rejection_reason?:
+            | Database["public"]["Enums"]["rejection_reason"]
+            | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          scanned_at?: string | null
+          state?: Database["public"]["Enums"]["image_state"]
+          uploader_id?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "images_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "images_uploader_id_fkey"
+            columns: ["uploader_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      moderation_decisions: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          id: string
+          image_id: string
+          notes: string | null
+          rejection_reason:
+            | Database["public"]["Enums"]["rejection_reason"]
+            | null
+          reviewer_id: string | null
+          reviewer_kind: Database["public"]["Enums"]["moderation_actor_kind"]
+          verdict: Database["public"]["Enums"]["moderation_verdict"]
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          image_id: string
+          notes?: string | null
+          rejection_reason?:
+            | Database["public"]["Enums"]["rejection_reason"]
+            | null
+          reviewer_id?: string | null
+          reviewer_kind: Database["public"]["Enums"]["moderation_actor_kind"]
+          verdict: Database["public"]["Enums"]["moderation_verdict"]
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          image_id?: string
+          notes?: string | null
+          rejection_reason?:
+            | Database["public"]["Enums"]["rejection_reason"]
+            | null
+          reviewer_id?: string | null
+          reviewer_kind?: Database["public"]["Enums"]["moderation_actor_kind"]
+          verdict?: Database["public"]["Enums"]["moderation_verdict"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "moderation_decisions_image_id_fkey"
+            columns: ["image_id"]
+            isOneToOne: false
+            referencedRelation: "images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "moderation_decisions_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mutes: {
         Row: {
           created_at: string
@@ -192,6 +327,113 @@ export type Database = {
         }
         Relationships: []
       }
+      tos_acceptances: {
+        Row: {
+          accepted_at: string
+          id: string
+          ip: string | null
+          profile_id: string
+          user_agent: string | null
+          version: string
+        }
+        Insert: {
+          accepted_at?: string
+          id?: string
+          ip?: string | null
+          profile_id: string
+          user_agent?: string | null
+          version: string
+        }
+        Update: {
+          accepted_at?: string
+          id?: string
+          ip?: string | null
+          profile_id?: string
+          user_agent?: string | null
+          version?: string
+        }
+        Relationships: []
+      }
+      trip_members: {
+        Row: {
+          joined_at: string
+          profile_id: string
+          role: Database["public"]["Enums"]["trip_member_role"]
+          trip_id: string
+        }
+        Insert: {
+          joined_at?: string
+          profile_id: string
+          role?: Database["public"]["Enums"]["trip_member_role"]
+          trip_id: string
+        }
+        Update: {
+          joined_at?: string
+          profile_id?: string
+          role?: Database["public"]["Enums"]["trip_member_role"]
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_members_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_members_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trips: {
+        Row: {
+          created_at: string
+          description: string | null
+          end_date: string | null
+          id: string
+          name: string
+          organizer_id: string
+          start_date: string | null
+          updated_at: string
+          visibility: Database["public"]["Enums"]["trip_visibility"]
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          name: string
+          organizer_id: string
+          start_date?: string | null
+          updated_at?: string
+          visibility?: Database["public"]["Enums"]["trip_visibility"]
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          name?: string
+          organizer_id?: string
+          start_date?: string | null
+          updated_at?: string
+          visibility?: Database["public"]["Enums"]["trip_visibility"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trips_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -209,7 +451,19 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      image_state: "pending_media" | "pending_review" | "approved" | "rejected"
+      moderation_actor_kind: "human" | "system"
+      moderation_verdict: "approve" | "reject"
+      rejection_reason:
+        | "nudity"
+        | "violence"
+        | "minors"
+        | "csam"
+        | "unrelated_to_trip"
+        | "spam"
+        | "other"
+      trip_member_role: "organizer" | "member"
+      trip_visibility: "private" | "unlisted" | "public"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -339,6 +593,22 @@ export const Constants = {
     Enums: {},
   },
   public: {
-    Enums: {},
+    Enums: {
+      image_state: ["pending_media", "pending_review", "approved", "rejected"],
+      moderation_actor_kind: ["human", "system"],
+      moderation_verdict: ["approve", "reject"],
+      rejection_reason: [
+        "nudity",
+        "violence",
+        "minors",
+        "csam",
+        "unrelated_to_trip",
+        "spam",
+        "other",
+      ],
+      trip_member_role: ["organizer", "member"],
+      trip_visibility: ["private", "unlisted", "public"],
+    },
   },
 } as const
+
