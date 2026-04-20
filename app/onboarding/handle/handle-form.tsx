@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useTransition } from "react";
 
 /**
@@ -127,6 +128,60 @@ export function HandleForm({
           {error}
         </p>
       ) : null}
+
+      {/*
+        ToS gate — Bead tripplanner-s3a.24. Required checkbox sitting
+        above the submit button; the read-then-act order is intentional
+        (the consent gate sits between "submit my handle" and the action).
+        The whole row is a single <label> so taps anywhere in the row
+        toggle the checkbox; the three nested <Link> elements are NOT
+        toggle targets because the browser treats nested anchor clicks
+        as the link target. No `target="_blank"` — the legal pages open
+        in the same tab and the back button restores form state.
+      */}
+      <fieldset className="flex flex-col gap-2 m-0 p-0 border-0">
+        <label
+          htmlFor="tos_accepted"
+          className="flex items-start gap-3 cursor-pointer text-sm text-ink leading-relaxed"
+        >
+          <input
+            id="tos_accepted"
+            name="tos_accepted"
+            type="checkbox"
+            required
+            disabled={pending}
+            aria-describedby="tos-hint"
+            className="mt-0.5 h-6 w-6 shrink-0 rounded border border-hairline accent-ember focus-visible:outline-2 focus-visible:outline-ember"
+          />
+          <span>
+            I have read and agree to Jettison&apos;s{" "}
+            <Link
+              href="/legal/terms"
+              className="underline decoration-hairline underline-offset-4 text-secondary hover:text-ink"
+            >
+              Terms of Service
+            </Link>
+            ,{" "}
+            <Link
+              href="/legal/community-guidelines"
+              className="underline decoration-hairline underline-offset-4 text-secondary hover:text-ink"
+            >
+              Community Guidelines
+            </Link>
+            , and{" "}
+            <Link
+              href="/legal/privacy"
+              className="underline decoration-hairline underline-offset-4 text-secondary hover:text-ink"
+            >
+              Privacy Policy
+            </Link>
+            .
+          </span>
+        </label>
+        <span id="tos-hint" className="text-xs text-muted pl-9">
+          These are template documents, not lawyer-reviewed at MVP.
+        </span>
+      </fieldset>
 
       <button
         type="submit"

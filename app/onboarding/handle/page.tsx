@@ -108,6 +108,8 @@ function errorMessageFor(code: string | undefined): string | null {
       return "You need to be signed in to do that.";
     case "rate_limited":
       return "Too many tries. Take a breath and try again in a few minutes.";
+    case "tos_required":
+      return "Please read and accept the three documents first.";
     case "unknown":
       return "Something went wrong. Please try again.";
     default:
