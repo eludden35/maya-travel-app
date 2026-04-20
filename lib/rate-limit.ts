@@ -33,9 +33,13 @@ import { createClient } from "@/lib/supabase/server";
  * number here, update the migration comment so the source of truth stays
  * coherent.
  *
- * Only `HANDLE_CREATE` is wired in this chunk (handle-creation Server
- * Action). The rest are reserved names — call sites land in
- * tripplanner-s3a.25.
+ * Wired in this chunk: `HANDLE_CREATE` (handle-creation Server Action).
+ * Wired by sibling Beads in the current parallel batch:
+ *   - `IMAGES_UPLOAD` → tripplanner-s3a.4 (uploadPendingImage helper).
+ *   - `TOS_ACCEPT` → tripplanner-s3a.24 (acceptCurrentTos helper).
+ * Pre-allocated here as a parent-agent prep step so neither s3a.4 nor
+ * s3a.24 needs to modify this file in parallel.
+ * The rest are reserved names — call sites land in tripplanner-s3a.25.
  */
 export const RATE_LIMITS = {
   HANDLE_CREATE: { surface: "handle_create", max: 5, windowSeconds: 60 * 60 },
@@ -46,6 +50,8 @@ export const RATE_LIMITS = {
   COMMENT: { surface: "comment", max: 60, windowSeconds: 60 * 60 },
   DM: { surface: "dm", max: 100, windowSeconds: 60 * 60 },
   JOIN_REQUEST: { surface: "join_request", max: 20, windowSeconds: 60 * 60 * 24 },
+  IMAGES_UPLOAD: { surface: "images_upload", max: 10, windowSeconds: 60 * 60 },
+  TOS_ACCEPT: { surface: "tos_accept", max: 10, windowSeconds: 60 * 60 },
 } as const;
 
 export type RateLimitSpec = {
