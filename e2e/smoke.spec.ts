@@ -36,8 +36,10 @@ test("a new tester signs in with a code, onboards and follows someone", async ({
   await page.getByRole("button", { name: "Sign in" }).click();
 
   await expect(page).toHaveURL(/\/onboarding\/handle/);
-  await page.getByLabel("Handle").fill(`e2e_${suffix}`);
-  await page.getByLabel("Display name").fill("E2E Tester");
+  // By role: the "Handle preview" region also matches getByLabel("Handle"),
+  // and each field's label includes its hint text.
+  await page.getByRole("textbox", { name: /^Handle/ }).fill(`e2e_${suffix}`);
+  await page.getByRole("textbox", { name: /^Display name/ }).fill("E2E Tester");
   await page.getByLabel(/I have read and agree/).check();
   await page.getByRole("button", { name: "Mail it" }).click();
 

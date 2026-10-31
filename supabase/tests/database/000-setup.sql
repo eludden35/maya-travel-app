@@ -60,9 +60,11 @@ begin
     '{"provider":"email","providers":["email"]}', '{}', now(), now()
   );
 
+  -- The `t_` prefix keeps test handles clear of supabase/seed.sql, which
+  -- already has profiles named alice and bob.
   if p_with_profile then
     insert into public.profiles (id, handle, display_name, is_discoverable)
-    values (v_id, p_name, initcap(p_name), p_discoverable);
+    values (v_id, 't_' || p_name, initcap(p_name), p_discoverable);
   end if;
 
   if p_allowlisted and to_regclass('private.onboarding_allowlist') is not null then
