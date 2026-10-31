@@ -145,9 +145,14 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+site_url = "http://localhost:3000"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+additional_redirect_urls = [
+  "http://localhost:3000/auth/callback",
+  "http://localhost:3000/auth/confirm",
+  "http://127.0.0.1:3000/auth/callback",
+  "http://127.0.0.1:3000/auth/confirm",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to the local API URL (http://127.0.0.1:<port>/auth/v1).
@@ -219,6 +224,20 @@ otp_expiry = 3600
 # pass = "env(SENDGRID_API_KEY)"
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
+
+# Jettison sign-in email: a 6-digit code plus a token_hash link to /auth/confirm.
+# Unlike the default PKCE "?code=" link, both work when the email is opened on
+# another device or inside an in-app mail browser. New users get the
+# confirmation template and returning users the magic-link one, so both point
+# at the same file. Paste the same HTML into the hosted project under
+# Authentication -> Email Templates ("Confirm signup" and "Magic Link").
+[auth.email.template.magic_link]
+subject = "Your Jettison sign-in code"
+content_path = "./supabase/templates/sign-in.html"
+
+[auth.email.template.confirmation]
+subject = "Your Jettison sign-in code"
+content_path = "./supabase/templates/sign-in.html"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]

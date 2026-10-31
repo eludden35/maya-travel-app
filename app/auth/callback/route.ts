@@ -1,36 +1,39 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { forgetSignIn, readNextPath } from "@/lib/auth-flow";
+import { safeNextPath } from "@/lib/safe-redirect";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Magic-link callback. Supabase redirects the user here after they click the
- * link in their email; the `code` query param is exchanged for a session
- * cookie via `exchangeCodeForSession`. After that, `/` shows their email
- * server-side.
+ * PKCE callback: exchanges `?code=` for a session cookie. Used by the
+ * default Supabase email template (before the project's template is updated
+ * to supabase/templates/sign-in.html) and by future OAuth providers. Only
+ * works in the browser that requested the sign-in.
  *
- * Server-only by construction (Route Handler under `app/auth/`); the boundary
- * `rg` check in Step 11 confirms no `"use client"` module touches this code.
+ * `next` must be a same-origin path; anything else lands on "/".
  */
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const next = url.searchParams.get("next") ?? "/";
 
-  if (code) {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return NextResponse.redirect(new URL(next, url.origin));
-    }
+  if (!code) {
     return NextResponse.redirect(
-      new URL(
-        `/auth/sign-in?error=${encodeURIComponent(error.message)}`,
-        url.origin,
-      ),
+      new URL("/auth/sign-in?error=missing_code", url.origin),
     );
   }
 
-  return NextResponse.redirect(
-    new URL("/auth/sign-in?error=missing_code", url.origin),
-  );
+  const supabase = await createClient();
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  if (error) {
+    console.error("auth callback failed", error.status, error.code);
+    return NextResponse.redirect(
+      new URL("/auth/sign-in?error=link_invalid", url.origin),
+    );
+  }
+
+  const next = url.searchParams.has("next")
+    ? safeNextPath(url.searchParams.get("next"))
+    : await readNextPath();
+  await forgetSignIn();
+  return NextResponse.redirect(new URL(next, url.origin));
 }
