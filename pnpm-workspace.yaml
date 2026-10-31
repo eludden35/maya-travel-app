@@ -1,3 +1,10 @@
+# Native deps ship prebuilt binaries (sharp -> @img/sharp-*, unrs-resolver ->
+# napi bindings), so their install scripts are not needed.
+# `allowBuilds` is the pnpm 11 setting; `ignoredBuiltDependencies` keeps
+# pnpm 10 (e.g. a host that ignores `packageManager`) quiet.
+allowBuilds:
+  sharp: false
+  unrs-resolver: false
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
