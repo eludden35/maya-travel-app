@@ -16,10 +16,10 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Run on every request EXCEPT static assets, image optimization output, and
-  // the Next.js internals. Auth cookies need refreshing on document requests
-  // and API requests, not on /favicon.ico or /next.svg.
+  // Run on every request EXCEPT static assets, image optimization output, the
+  // generated icons / manifest / robots.txt, and the Next.js internals. Auth
+  // cookies need refreshing on document requests and API requests only.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|icon|apple-icon|manifest.webmanifest|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
