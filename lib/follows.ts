@@ -1,5 +1,6 @@
 import "server-only";
 
+import { DataAccessError } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -25,6 +26,7 @@ export type FollowResult =
         | "already_following"
         | "cannot_self_follow"
         | "profile_not_found"
+        | "unavailable"
         | "unauthorized"
         | "unknown";
     };
@@ -38,11 +40,9 @@ export type UnfollowResult =
  * `already_following` (Postgres `23505`) rather than masking it as success;
  * the wrapping action / UI is free to treat that as success if useful.
  *
- * The block check ("Cannot follow if either side has blocked the other") is
- * intentionally NOT enforced here yet — see TODO(s3a.16) in the migration.
- * When `tripplanner-s3a.16` ships, the migration's `follows_insert_self`
- * policy gets the block branch and the failing insert will surface here as
- * the same enum (likely `unknown` until we model it explicitly).
+ * The `follows_insert_self` policy refuses the insert when either side has
+ * blocked the other (`private.blocked_either_way`). That surfaces as `42501`
+ * and maps to `unavailable`, which the UI words without revealing a block.
  */
 export async function followProfile(followeeId: string): Promise<FollowResult> {
   const supabase = await createClient();
@@ -71,6 +71,9 @@ export async function followProfile(followeeId: string): Promise<FollowResult> {
     }
     if (error.code === "23503") {
       return { ok: false, error: "profile_not_found" };
+    }
+    if (error.code === "42501") {
+      return { ok: false, error: "unavailable" };
     }
     console.error("followProfile failed", error.code, error.message);
     return { ok: false, error: "unknown" };
@@ -121,8 +124,7 @@ export async function isFollowing(
     .eq("follower_id", followerId)
     .eq("followee_id", followeeId);
   if (error) {
-    console.error("isFollowing failed", error.message);
-    return false;
+    throw new DataAccessError("isFollowing", error);
   }
   return (count ?? 0) > 0;
 }
@@ -148,16 +150,10 @@ export async function getFollowCounts(
   ]);
 
   if (followersRes.error) {
-    console.error(
-      "getFollowCounts followers query failed",
-      followersRes.error.message,
-    );
+    throw new DataAccessError("getFollowCounts followers", followersRes.error);
   }
   if (followingRes.error) {
-    console.error(
-      "getFollowCounts following query failed",
-      followingRes.error.message,
-    );
+    throw new DataAccessError("getFollowCounts following", followingRes.error);
   }
 
   return {

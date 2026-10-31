@@ -12,6 +12,7 @@ import {
   type UnblockResult,
   type UnmuteResult,
 } from "@/lib/blocks";
+import { isUuid } from "@/lib/uuid";
 
 /**
  * Server Action wrappers for blocks + mutes (Bead tripplanner-s3a.16).
@@ -33,6 +34,9 @@ import {
  */
 
 export async function blockAction(profileId: string): Promise<BlockResult> {
+  if (!isUuid(profileId)) {
+    return { ok: false, error: "profile_not_found" };
+  }
   const result = await blockProfile(profileId);
   if (result.ok) {
     revalidatePath("/");
@@ -43,6 +47,9 @@ export async function blockAction(profileId: string): Promise<BlockResult> {
 export async function unblockAction(
   profileId: string,
 ): Promise<UnblockResult> {
+  if (!isUuid(profileId)) {
+    return { ok: true };
+  }
   const result = await unblockProfile(profileId);
   if (result.ok) {
     revalidatePath("/");
@@ -51,6 +58,9 @@ export async function unblockAction(
 }
 
 export async function muteAction(profileId: string): Promise<MuteResult> {
+  if (!isUuid(profileId)) {
+    return { ok: false, error: "profile_not_found" };
+  }
   const result = await muteProfile(profileId);
   if (result.ok) {
     revalidatePath("/");
@@ -61,6 +71,9 @@ export async function muteAction(profileId: string): Promise<MuteResult> {
 export async function unmuteAction(
   profileId: string,
 ): Promise<UnmuteResult> {
+  if (!isUuid(profileId)) {
+    return { ok: true };
+  }
   const result = await unmuteProfile(profileId);
   if (result.ok) {
     revalidatePath("/");

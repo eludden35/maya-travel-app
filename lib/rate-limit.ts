@@ -3,61 +3,44 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Rate-limit primitive — Bead tripplanner-s3a.14.
+ * Rate-limit primitive — Bead tripplanner-s3a.14, hardened 2026-10-29.
  *
  * `withRateLimit` wraps a Server Action body in an atomic per-(profile,
- * surface, window) counter check backed by `public.try_consume_rate_limit`
- * (see supabase/migrations/20260419050100_rate_limits.sql). The SQL
- * function is the single legitimate write path for `rate_limit_counters`;
- * RLS rejects everything else.
+ * surface, window) counter check backed by `public.consume_rate_limit`
+ * (supabase/migrations/20261029120000_rls_hardening.sql). The SQL function
+ * charges `auth.uid()` — the caller can only ever spend their own budget —
+ * and reads the limit and window from `private.rate_limit_rules`, so the
+ * thresholds live in the database and a direct API caller cannot choose
+ * its own. This module only names the surface.
  *
- * Trust boundary:
- *   - The SQL function is `grant execute … to authenticated`, so this
- *     helper uses the per-request server client (`createClient` from
- *     `@/lib/supabase/server`) carrying the user's session cookie. No
- *     `SUPABASE_SECRET_KEY` / service-role usage here — rate limiting is
- *     per-user, not per-request-id, so the user's auth context is exactly
- *     what we want. The function only ever increments; there is no read
- *     bypass to worry about.
- *
- * Sliding-window precision:
- *   - `retryAfterSeconds` returns the configured window length. A more
- *     precise "time to next bucket boundary" calc is fine to add later;
- *     the window length is a safe upper bound at MVP and matches the
- *     bucket-aligned semantics documented in the migration header.
+ * Trust boundary: uses the per-request server client carrying the user's
+ * session cookie. No secret key — the function is granted to
+ * `authenticated` only.
  */
 
 /**
- * Default thresholds. Mirror the comment block in
- * supabase/migrations/20260419050100_rate_limits.sql; if you change a
- * number here, update the migration comment so the source of truth stays
- * coherent.
+ * Surface names. Each must have a row in `private.rate_limit_rules`.
  *
- * Wired in this chunk: `HANDLE_CREATE` (handle-creation Server Action).
- * Wired by sibling Beads in the current parallel batch:
- *   - `IMAGES_UPLOAD` → tripplanner-s3a.4 (uploadPendingImage helper).
- *   - `TOS_ACCEPT` → tripplanner-s3a.24 (acceptCurrentTos helper).
- * Pre-allocated here as a parent-agent prep step so neither s3a.4 nor
- * s3a.24 needs to modify this file in parallel.
- * The rest are reserved names — call sites land in tripplanner-s3a.25.
+ * `HANDLE_CREATE` and `TOS_ACCEPT` are charged inside the
+ * `complete_onboarding` and `accept_tos` RPCs. `IMAGES_UPLOAD` is charged
+ * by `uploadPendingImage`. The rest are reserved — call sites land in
+ * tripplanner-s3a.25.
  */
 export const RATE_LIMITS = {
-  HANDLE_CREATE: { surface: "handle_create", max: 5, windowSeconds: 60 * 60 },
-  PROFILE_UPDATE: { surface: "profile_update", max: 30, windowSeconds: 60 * 60 },
-  FOLLOW: { surface: "follow", max: 100, windowSeconds: 60 * 60 },
-  BLOCK: { surface: "block", max: 50, windowSeconds: 60 * 60 },
-  POST: { surface: "post", max: 30, windowSeconds: 60 * 60 },
-  COMMENT: { surface: "comment", max: 60, windowSeconds: 60 * 60 },
-  DM: { surface: "dm", max: 100, windowSeconds: 60 * 60 },
-  JOIN_REQUEST: { surface: "join_request", max: 20, windowSeconds: 60 * 60 * 24 },
-  IMAGES_UPLOAD: { surface: "images_upload", max: 10, windowSeconds: 60 * 60 },
-  TOS_ACCEPT: { surface: "tos_accept", max: 10, windowSeconds: 60 * 60 },
+  HANDLE_CREATE: { surface: "handle_create" },
+  PROFILE_UPDATE: { surface: "profile_update" },
+  FOLLOW: { surface: "follow" },
+  BLOCK: { surface: "block" },
+  POST: { surface: "post" },
+  COMMENT: { surface: "comment" },
+  DM: { surface: "dm" },
+  JOIN_REQUEST: { surface: "join_request" },
+  IMAGES_UPLOAD: { surface: "images_upload" },
+  TOS_ACCEPT: { surface: "tos_accept" },
 } as const;
 
 export type RateLimitSpec = {
   surface: string;
-  max: number;
-  windowSeconds: number;
 };
 
 export type RateLimitResult<T> =
@@ -68,12 +51,10 @@ export type RateLimitResult<T> =
 /**
  * Run `work` only if the caller is under their per-surface rate limit.
  *
- *   - Resolves the caller's `profile_id` from the server-side session.
- *     Unauthenticated callers get `{ ok: false, error: "unauthorized" }`
+ *   - Unauthenticated callers get `{ ok: false, error: "unauthorized" }`
  *     without consuming a slot.
- *   - Calls `public.try_consume_rate_limit(profile_id, surface, max, window)`.
- *     `false` → `{ ok: false, error: "rate_limited", retryAfterSeconds }`.
- *   - Otherwise awaits `work()` and returns its result wrapped in `ok: true`.
+ *   - `consume_rate_limit` returns 0 when allowed, otherwise the seconds
+ *     until the window resets → `{ ok: false, error: "rate_limited" }`.
  *   - Any unexpected SQL error → `{ ok: false, error: "unknown" }`. Errors
  *     are logged best-effort; the user-facing message lives at the call site
  *     so we never leak SQL details into the UI.
@@ -91,14 +72,9 @@ export async function withRateLimit<T>(
     return { ok: false, error: "unauthorized" };
   }
 
-  const { data: allowed, error } = await supabase.rpc(
-    "try_consume_rate_limit",
-    {
-      p_profile_id: user.id,
-      p_surface: spec.surface,
-      p_max: spec.max,
-      p_window_seconds: spec.windowSeconds,
-    },
+  const { data: retryAfterSeconds, error } = await supabase.rpc(
+    "consume_rate_limit",
+    { p_surface: spec.surface },
   );
 
   if (error) {
@@ -110,11 +86,11 @@ export async function withRateLimit<T>(
     return { ok: false, error: "unknown" };
   }
 
-  if (allowed !== true) {
+  if (retryAfterSeconds !== 0) {
     return {
       ok: false,
       error: "rate_limited",
-      retryAfterSeconds: spec.windowSeconds,
+      retryAfterSeconds: retryAfterSeconds ?? 60,
     };
   }
 

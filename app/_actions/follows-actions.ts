@@ -8,6 +8,7 @@ import {
   type FollowResult,
   type UnfollowResult,
 } from "@/lib/follows";
+import { isUuid } from "@/lib/uuid";
 
 /**
  * Server Action wrappers for the follow graph (Bead tripplanner-s3a.2).
@@ -24,6 +25,9 @@ import {
  */
 
 export async function followAction(profileId: string): Promise<FollowResult> {
+  if (!isUuid(profileId)) {
+    return { ok: false, error: "profile_not_found" };
+  }
   const result = await followProfile(profileId);
   if (result.ok) {
     revalidatePath("/");
@@ -34,6 +38,9 @@ export async function followAction(profileId: string): Promise<FollowResult> {
 export async function unfollowAction(
   profileId: string,
 ): Promise<UnfollowResult> {
+  if (!isUuid(profileId)) {
+    return { ok: true };
+  }
   const result = await unfollowProfile(profileId);
   if (result.ok) {
     revalidatePath("/");

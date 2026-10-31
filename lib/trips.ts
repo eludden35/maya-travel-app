@@ -1,14 +1,20 @@
 import "server-only";
 
 import type { Database } from "@/database.types";
+import { DataAccessError } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/server";
 
 /**
  * Server-only Trip read helpers (Bead tripplanner-s3a.3).
  *
- * No write helpers in this chunk — trip create + update + leave land in
- * tripplanner-s3a.26 alongside the trip detail page and the
- * `app/_actions/trips-actions.ts` Server Action wrappers.
+ * No write helpers yet — trip create + update + leave land in
+ * tripplanner-718 alongside the trip detail page and the
+ * `app/_actions/trips-actions.ts` Server Action wrappers. Inserting a trip
+ * adds the organizer's `trip_members` row via a database trigger; other
+ * members will join by accepting an invite (no client inserts).
+ *
+ * Read helpers throw `DataAccessError` when a query fails, so an outage
+ * shows the error page instead of "no trips yet".
  *
  * Why server-only: the helpers issue authenticated Supabase calls under
  * the caller's session cookie, which means RLS still applies. Pulling
@@ -69,11 +75,7 @@ export async function listTripsForViewer(
     .eq("profile_id", viewerId);
 
   if (membershipsError) {
-    console.error(
-      "listTripsForViewer memberships query failed",
-      membershipsError.message,
-    );
-    return [];
+    throw new DataAccessError("listTripsForViewer memberships", membershipsError);
   }
   if (!memberships || memberships.length === 0) {
     return [];
@@ -89,11 +91,7 @@ export async function listTripsForViewer(
     .limit(limit);
 
   if (tripsError) {
-    console.error(
-      "listTripsForViewer trips query failed",
-      tripsError.message,
-    );
-    return [];
+    throw new DataAccessError("listTripsForViewer trips", tripsError);
   }
   if (!trips || trips.length === 0) {
     return [];
@@ -107,10 +105,7 @@ export async function listTripsForViewer(
     .in("trip_id", visibleTripIds);
 
   if (memberRowsError) {
-    console.error(
-      "listTripsForViewer member-count query failed",
-      memberRowsError.message,
-    );
+    throw new DataAccessError("listTripsForViewer member counts", memberRowsError);
   }
 
   const counts = new Map<string, number>();
@@ -125,22 +120,21 @@ export async function listTripsForViewer(
 }
 
 /**
- * Single-trip read. RLS does the heavy lifting — non-members of a private
- * trip get `null` naturally. Knowing the id of an `unlisted` trip is the
- * gate (UUIDv4 = 122 bits of entropy); see migration header.
+ * Single-trip read through the `get_trip` RPC: public and unlisted trips for
+ * anyone holding the id, private trips for their members. Table reads no
+ * longer return unlisted trips (they could be listed by anyone), so this is
+ * the only way to open one. Returns `null` when the trip doesn't exist or
+ * isn't visible to the caller.
  */
 export async function getTripById(tripId: string): Promise<Trip | null> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
-    .from("trips")
-    .select("*")
-    .eq("id", tripId)
+    .rpc("get_trip", { p_trip_id: tripId })
     .maybeSingle();
 
   if (error) {
-    console.error("getTripById failed", error.code, error.message);
-    return null;
+    throw new DataAccessError("getTripById", error);
   }
   return data;
 }
@@ -159,8 +153,7 @@ export async function getTripMembers(tripId: string): Promise<TripMember[]> {
     .eq("trip_id", tripId);
 
   if (error) {
-    console.error("getTripMembers failed", error.code, error.message);
-    return [];
+    throw new DataAccessError("getTripMembers", error);
   }
   return data ?? [];
 }
@@ -183,8 +176,7 @@ export async function isTripMember(
     .eq("profile_id", profileId);
 
   if (error) {
-    console.error("isTripMember failed", error.message);
-    return false;
+    throw new DataAccessError("isTripMember", error);
   }
   return (count ?? 0) > 0;
 }
