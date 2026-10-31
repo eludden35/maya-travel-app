@@ -1,82 +1,112 @@
-# Three parallel social-substrate chunks: photo pipeline + trip visibility + ToS gate
+# UAT readiness: stabilize, secure, and stand up UAT-1
 
-**Active Beads — all closed in this session, in dependency order:**
+**Session:** 2026-10-29. **Epic:** [`tripplanner-2o5`](#) — _UAT-1: core trip loop (invite-only friends & family, manual settle)_. **Test plan:** [`docs/uat/uat-1-test-plan.md`](../docs/uat/uat-1-test-plan.md).
 
-- [`tripplanner-s3a.4`](#) — _infra: photo storage pipeline + pending_review state machine_, P1, parent `tripplanner-s3a`. Substrate for the AGENTS.md / ADR 0002 hard rule that every uploaded image is invisible until a human moderator approves it.
-- [`tripplanner-s3a.3`](#) — _feat: trip visibility model (private | unlisted | public) + RLS_, P1, parent `tripplanner-s3a`. Adds the trip + trip_members tables that the rest of the social loop (Posts, join requests, DMs) hangs off, plus a "Your trips" section on the home page.
-- [`tripplanner-s3a.24`](#) — _feat: ToS acceptance gate at signup_, P1, parent `tripplanner-s3a`. Records explicit ToS + Community Guidelines + Privacy acceptance per profile per version, masked-IP + truncated-UA, gated at handle creation.
+A full review of the app (no code had changed since 2026-04-20) found that it wasn't ready for UAT. This session did Phase 0 (stabilize and secure) and Phase 1 (UAT environment and quality gates). Phase 2 (build the UAT-1 scope) and Phase 3 (run UAT) are filed as Beads under the epic.
 
-**Plans:** [`s3a04_photo_pipeline.plan.md`](../.cursor/plans/s3a04_photo_pipeline.plan.md), [`s3a03_trip_visibility.plan.md`](../.cursor/plans/s3a03_trip_visibility.plan.md), [`s3a24_tos_gate.plan.md`](../.cursor/plans/s3a24_tos_gate.plan.md).
+## Decisions (founder, 2026-10-29)
+
+- **UAT-1 scope: the core trip loop.** Create a trip, invite by link, shared costs, balances, mark as paid, text posts. Photos, DMs, explore, notifications and real payments wait for later rounds.
+- **Testers:** 5–25 invited friends and family. Invite-only: onboarding completes only for an email in `private.onboarding_allowlist`.
+- **Money:** tracked and settled manually; no payment provider. Integer minor units, one currency per trip, member-only RLS, RPC-only writes.
+- **Environments:** the hosted Supabase project `jettison` (`siaygwtwgvgjoircgpoa`, test data only) is **UAT**. Development runs on local Supabase in Docker. Production gets a new project at launch.
+- **Defaults:** hidden profiles are visible only to the person, trip co-members and people they follow; posts and money are members-only; no guest participants in UAT-1.
+
+## Review findings
+
+| # | Sev | Finding | Fixed by |
+|---|---|---|---|
+| 1 | P0 | `trip_members` read policy queried itself → 42P17 on every signed-in read of `profiles`, `trips`, `trip_members`; helpers hid it, users looped through onboarding | `private.is_trip_member` |
+| 2 | P0 | Any account could insert its own profile with `is_moderator = true` (guard trigger was UPDATE-only, grants wide open) | INSERT revoked; trigger on insert or update; `complete_onboarding` |
+| 3 | P1 | Unlisted trips listable with `?visibility=eq.unlisted` | Unlisted branch dropped; `get_trip(id)` |
+| 4 | P1 | Blocks one-way: the blocked user could re-follow and still see the blocker | `has_blocked_me`, `blocked_either_way` in policies |
+| 5 | P1 | Rate-limit RPC trusted caller-supplied identity and limits; callable by anon | `consume_rate_limit(surface)`, limits in `private.rate_limit_rules` |
+| 6 | P1 | Clients could upload to `images-pending` and insert `pending_review` rows directly; no bucket limits; anon could list approved | Storage policies dropped; admin-client inserts; size/type limits; path check |
+| 7 | P1 | Private trips uncreatable (INSERT … RETURNING had no organizer branch); organizers could add anyone | Organizer branch; AFTER INSERT membership trigger; forced-add policy dropped |
+| 8 | P1 | Profile + ToS acceptance were two calls; direct API insert skipped the gate | `complete_onboarding` (one transaction) |
+| 9 | P2 | Open redirect via `next=//…`, raw auth error text, Origin-derived `emailRedirectTo` | `safeNextPath`, error codes, `SITE_URL` |
+| 10 | P2 | Smaller gaps (`search_path`, `created_at` spoofing, `is_moderator()` answered for anyone, …) | Same migration |
+| 11 | P2 | Contrast below AA (`muted` ≈ 2.6:1, ember ≈ 4.4:1) | Open: `tripplanner-2o5.11` |
 
 ## Plan
 
-### Pre-flight (parent agent)
+### Phase 0 — stabilize and secure
 
-- [x] **scope-check** — Confirmed zero file overlap across the three chunks. Pre-allocated three non-conflicting migration timestamps (`20260419190000_images_pipeline.sql`, `20260419190100_trips_visibility.sql`, `20260419190200_tos_acceptances.sql`).
-- [x] **rate-limit pre-allocation** — Both s3a.4 (`IMAGES_UPLOAD`) and s3a.24 (`TOS_ACCEPT`) needed a new entry in [`lib/rate-limit.ts`](../lib/rate-limit.ts). Parent agent pre-allocated both entries in a separate prep commit so neither subagent had to touch the file in parallel. Subagents instructed to consume the existing constants only.
-- [x] **stop-before-orchestration rule** — Subagents told explicitly to stop before `supabase db push`, `gen types`, and `git commit`. Parent agent owns the merge sequence.
+- [x] Toolchain: Node 24 (`.nvmrc`), pnpm 11.25 (`packageManager`), `engines`; `pnpm install`; typecheck and lint re-baselined.
+- [x] pgTAP suite in [`supabase/tests/database/`](../supabase/tests/database/) (`000-setup.sql` + nine files covering findings 1–8) and a local-only [`supabase/seed.sql`](../supabase/seed.sql).
+- [x] Corrective migrations: [`20261029120000_rls_hardening.sql`](../supabase/migrations/20261029120000_rls_hardening.sql) (findings 1–8 and 10) and [`20261029120100_onboarding_allowlist.sql`](../supabase/migrations/20261029120100_onboarding_allowlist.sql) (invite-only).
+- [x] TypeScript to match: RPC-based onboarding, ToS, rate limits and `get_trip`; read helpers throw `DataAccessError` instead of returning null or `[]`; image rows inserted by the admin client; follow returns `unavailable` when blocked; `isUuid` guards on actions.
+- [x] Auth: 6-digit code plus a `token_hash` link through [`/auth/confirm`](../app/auth/confirm/route.ts), which works across devices; `SITE_URL`-based redirects; `safeNextPath`; error codes instead of raw text; error, global-error and not-found pages.
+- [x] Pushed both migrations to UAT with `supabase db push --linked`. This one push was from a laptop, with the founder's go-ahead, because CI can't migrate UAT until its secrets exist.
+- [x] Regenerated [`database.types.ts`](../database.types.ts) from UAT.
+- [ ] **Run the pgTAP suite.** Blocked locally: the Docker engine is down, and `supabase test db` needs Docker even with `--linked`, because it runs pg_prove in a container. Run it in CI or with psql.
+- [ ] **Incident check on UAT** (SQL editor): `select id, handle, created_at from public.profiles where is_moderator;` should list only accounts you made moderators. Finding 2 was open from 2026-04-19.
 
-### s3a.4 — photo storage pipeline + pre-moderation gate
+### Phase 1 — UAT environment and quality gates
 
-- [x] **migration** — [`supabase/migrations/20260419190000_images_pipeline.sql`](../supabase/migrations/20260419190000_images_pipeline.sql): `images` table (4-state machine: `pending_media → pending_review → approved | rejected`), `moderation_decisions` audit table, four enums, RLS on both tables, two storage buckets (`images-pending` private uploader+moderator-only via `storage.objects` RLS; `images-approved` public-read write-only-by-admin-client). Three orthogonal layers (images RLS + storage.objects RLS on pending + write-only-by-admin-client on approved) satisfy the AGENTS.md hard rule.
-- [x] **lib** — [`lib/images.ts`](../lib/images.ts) (server-only): `uploadPendingImage` (sharp EXIF strip + re-encode → bucket put → row insert → rollback on insert failure), `getImageById`, `markImageApproved` (cross-bucket move + audit), `markImageRejected` (state flip + audit + retain pending bytes), `getPendingImageQueue` (moderator-only). Throttled via `RATE_LIMITS.IMAGES_UPLOAD` (10/hour). Inserts directly as `pending_review` for now; s3a.5 (CSAM scan) reintroduces `pending_media`.
-- [x] **admin client** — [`lib/supabase/admin.ts`](../lib/supabase/admin.ts) (server-only): first `SUPABASE_SECRET_KEY` consumer in the repo, used for cross-bucket moves and admin-client writes to `images-approved`. `import "server-only"` enforced.
-- [x] **dependency** — Added `sharp ^0.34.5` to [`package.json`](../package.json).
+- [x] CI in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) has four jobs:
+  - `app`: typecheck, lint, Vitest, secret boundary.
+  - `database`: pgTAP on a fresh local stack.
+  - `e2e`: Playwright and Mailpit.
+  - `migrate-uat`: runs on `main` only, and only once its secrets exist.
+- [x] Sentry (`@sentry/nextjs`): off unless `NEXT_PUBLIC_SENTRY_DSN` is set; no PII.
+- [x] Security headers and CSP; `noindex` and `robots.txt` unless `ALLOW_INDEXING=true`.
+- [x] PWA manifest and JTSN icons; scaffold SVGs and favicon removed.
+- [x] Vitest unit tests (32): `safeNextPath`, `maskIp` / `truncateUserAgent`, `isUuid`.
+- [x] [`scripts/check-client-secrets.mjs`](../scripts/check-client-secrets.mjs) replaces the broken `rg` gate.
+- [ ] Founder steps: Supabase Pro for the UAT window; Vercel project and env vars; custom SMTP with SPF, DKIM and DMARC; Site URL and redirect allow-list; the code-and-link email template; GitHub secrets; allow-list entries.
 
-### s3a.3 — trip visibility model + minimal home-page surface
+### Phases 2 and 3
 
-- [x] **migration** — [`supabase/migrations/20260419190100_trips_visibility.sql`](../supabase/migrations/20260419190100_trips_visibility.sql): `trips` + `trip_members` tables, `trip_visibility` (`private | unlisted | public`) + `trip_member_role` (`organizer | member`) enums. RLS on `trips_select` covers organizer / member / `visibility = 'public'` / `visibility = 'unlisted' AND id is known`; RLS on `trip_members_select` keeps the membership list members-only. Money-privacy hard rule preserved (no monetary tables in this chunk).
-- [x] **policy seam closure** — Drop-and-recreate of `profiles_select_discoverable_or_self` in this new migration adds the co-trip-members branch so members can resolve each other's display name + avatar. Historical `20260419100000_profiles.sql` left untouched (migration immutability discipline).
-- [x] **lib** — [`lib/trips.ts`](../lib/trips.ts) (server-only): `listTripsForViewer`, `getTripById`, `getTripMembers`, `isTripMember`. RLS-gated reads under the caller's session. No write helpers in this chunk — they land in the new follow-up `tripplanner-718`.
-- [x] **ui** — [`app/page.tsx`](../app/page.tsx) gains a "Your trips" section above the discover-people section. Additive only.
-
-### s3a.24 — ToS acceptance gate
-
-- [x] **migration** — [`supabase/migrations/20260419190200_tos_acceptances.sql`](../supabase/migrations/20260419190200_tos_acceptances.sql): `tos_acceptances` table (`profile_id`, `version`, `accepted_at`, `ip`, `user_agent`) with `select_own` + `select_moderator` + `insert_own` RLS.
-- [x] **lib** — [`lib/legal.ts`](../lib/legal.ts) pins `CURRENT_TOS_VERSION` (bump to invalidate prior acceptances). [`lib/tos.ts`](../lib/tos.ts) exposes `acceptCurrentTos` + `hasAcceptedCurrentTos`. IP masked to /24 (IPv4) or /48 (IPv6); user-agent truncated to 256 chars in TS before insert. Throttled via `RATE_LIMITS.TOS_ACCEPT` (10/hour).
-- [x] **wire-up** — [`app/onboarding/handle/handle-form.tsx`](../app/onboarding/handle/handle-form.tsx) requires the checkbox; [`app/onboarding/handle/actions.ts`](../app/onboarding/handle/actions.ts) refuses to create the profile until the checkbox is checked, then records the acceptance in the same flow. [`app/onboarding/handle/page.tsx`](../app/onboarding/handle/page.tsx) surfaces a clean error message when the gate fails.
-
-### Orchestration (sequential, parent agent)
-
-- [x] **parallel-implement** — Three subagents launched in one message (one per chunk) with non-overlapping file scopes and pre-allocated migration timestamps + pre-allocated rate-limit constants.
-- [x] **fix-storage-comment-permission-error** — `supabase db push` initially failed because the s3a.4 subagent included `comment on policy "storage_pending_..." on storage.objects` statements; the migration role lacks ownership over the `storage.objects` table (owned by `supabase_storage_admin`). Removed the four `comment on policy` lines and replaced with an explanatory comment block in the migration. Push then succeeded.
-- [x] **push-migrations** — `supabase db push --linked` applied all three migrations in order to the linked project. Clean.
-- [x] **regenerate-types** — `supabase gen types typescript --linked > database.types.ts`. Hand-trimmed two stray `supabase` CLI status lines from the file ("Initialising login role..." prepended; CLI update notice appended). Confirmed `images`, `moderation_decisions`, `tos_acceptances`, `trips`, `trip_members` tables and `image_state`, `rejection_reason`, `moderation_verdict`, `trip_visibility`, `trip_member_role` enums all present.
-- [x] **cleanup-temp-types** — Removed local type augmentations from [`lib/images.ts`](../lib/images.ts), [`lib/trips.ts`](../lib/trips.ts), [`lib/tos.ts`](../lib/tos.ts) (the `LocalImage*` / `LocalModeration*` / `ExtendedDatabase` / `withImagesTypes` / `withTosTypes` / `getClient` workarounds). All three modules now consume the regenerated `Database` types directly.
-- [x] **typecheck + lint** — `pnpm tsc --noEmit` exit 0; `pnpm lint` exit 0.
-- [x] **commits** — Four commits in dependency order: prep (rate-limit pre-allocation) → s3a.4 (photo pipeline + database.types.ts regen) → s3a.3 (trips) → s3a.24 (ToS).
-- [x] **bead-bookkeeping** — Closed `tripplanner-s3a.4`, `tripplanner-s3a.3`, `tripplanner-s3a.24`. Filed `tripplanner-718` (trip create/update/leave Server Actions + detail page, discovered-from `s3a.3`) and `tripplanner-u4c` (rejected/orphaned pending-bucket cleanup job, discovered-from `s3a.4`).
-- [x] **todo-review-lessons** — this file; lesson appended below.
+- [x] Filed as Beads by a side session:
+  - 13 children under `tripplanner-2o5`.
+  - Post-UAT items: `1s0`, `311`, `ewo`, `iha`, `qer`, `sa4`, `ymv`.
+  - Doc cleanup `2er` (stale s3a.26 and s3a.27 citations).
+- [x] UAT-1 test plan written by a side session: 8 scenarios, a privacy sweep, entry and exit criteria, and 6 open questions for the Phase 2 chunk plans.
 
 ## Review
 
 ### Evidence
 
-- **Typecheck:** `pnpm tsc --noEmit` exit 0 after temp-type cleanup.
-- **Lint:** `pnpm lint` exit 0 (no warnings).
-- **DB push:** `supabase db push --linked` applied all three migrations cleanly to the linked project (after dropping the disallowed `comment on policy ... on storage.objects` lines).
-- **Type regen:** [`database.types.ts`](../database.types.ts) regenerated; `images` (line 109), `moderation_decisions` (line 187), `tos_acceptances` (line 331), `trip_members` (line 358), `trips` (line 394) tables and the five new enums all present.
-- **Migration immutability:** `git diff HEAD -- supabase/migrations/20260419100000_profiles.sql` shows zero changes to the historical profiles migration; the s3a.3 migration's drop-and-recreate of `profiles_select_discoverable_or_self` lives entirely in `20260419190100_trips_visibility.sql`.
-- **Money-privacy hard rule:** none of the three migrations touch monetary tables. `trips` carries no monetary fields. `lib/trips.ts` has no money-related helpers.
-- **Image pre-moderation hard rule:** `images-pending` bucket is private with uploader+moderator-only `storage.objects` RLS; `images-approved` is public-read but write-only-by-admin-client; `images` table RLS denies `state in ('pending_media','pending_review')` reads to non-uploader, non-moderator viewers. Three orthogonal layers as required.
+- `supabase migration list --linked`: the remote matched local through `20260419190200`. `supabase db push --linked` then applied `20261029120000` and `20261029120100` cleanly.
+- `supabase db lint --linked --schema public,private --level warning`: "No schema errors found".
+- Anonymous probes against the UAT REST API, using the publishable key only:
+
+| Probe | Result |
+|---|---|
+| `GET /rest/v1/trips?visibility=eq.unlisted` | 200 `[]` |
+| `GET /rest/v1/profiles?select=id&limit=1` | 200, one row (no 42P17) |
+| `GET /rest/v1/trip_members` | 200 `[]` |
+| `POST /rest/v1/rpc/get_trip` (unknown id) | 200 `[]` |
+| `POST /rest/v1/rpc/is_moderator` (someone else) | 200 `false` |
+| `POST /rest/v1/rpc/{consume_rate_limit,complete_onboarding,can_complete_onboarding,accept_tos}` | 401, 42501 permission denied |
+| `POST /rest/v1/rpc/try_consume_rate_limit` | 404 PGRST202 (dropped) |
+| `POST /rest/v1/{profiles,images,tos_acceptances}` | 401, 42501 permission denied |
+| Storage list `images-approved`, `images-pending` | 200 `[]` |
+
+- `pnpm typecheck` exit 0; `pnpm lint` exit 0; `pnpm test` 32/32 passed; `pnpm check:secrets` OK.
+- `pnpm build`: exit 0 (16 routes).
+- `pnpm start` with `curl` showed:
+  - Headers: CSP, HSTS, `X-Frame-Options: DENY`, `nosniff`, Referrer-Policy, Permissions-Policy and `X-Robots-Tag: noindex, nofollow` are present; `X-Powered-By` is absent.
+  - `/auth/callback?next=//evil.example` → `/auth/sign-in?error=missing_code`.
+  - A bogus `/auth/confirm` link → `?error=link_invalid`.
+  - Signed-out `/onboarding/handle` → `/auth/sign-in`.
+  - `robots.txt` is `Disallow: /`; the manifest and icons are served.
+- **Not yet run:**
+  - pgTAP (`supabase test db`).
+  - Playwright smoke (`pnpm test:e2e`).
+  - Signed-in smoke on UAT.
+  - The incident check.
 
 ### Lenses
 
-- **Architecture:** RLS-first across all three migrations; `lib/supabase/admin.ts` is the first `SUPABASE_SECRET_KEY` consumer in the repo and is `import "server-only"` enforced. The s3a.4 substrate uses three orthogonal layers (images RLS + storage.objects RLS on pending + admin-client-only writes to approved) so a single layer breach doesn't expose un-moderated content. The s3a.3 RLS for `trips_select` makes `unlisted` purely a knowing-the-id gate (UUIDv4 = 122 bits of entropy) — sufficient for a "share-by-link" affordance without a join table to back it. The `profiles_select_discoverable_or_self` policy was extended (drop + recreate in the new migration) instead of editing the historical migration — preserves Supabase's migration-hash invariant.
-- **PM:** Three chunks shipped end-to-end against AC. Honest deferrals: trip create/update/leave Server Actions + detail page (filed as `tripplanner-718`, discovered-from `s3a.3`); rejected/orphaned pending-bucket cleanup job (filed as `tripplanner-u4c`, discovered-from `s3a.4`); CSAM scan (already filed as `tripplanner-s3a.5`); moderator queue UI (already filed as `tripplanner-s3a.6`); avatar upload UI (already filed as `tripplanner-s3a.21`); auto-classification (already filed as `tripplanner-45u`). Both follow-ups carry `--discovered-from` linkage to the parent chunk for provenance.
-- **UI/UX:** Home-page "Your trips" section uses the same warm Fraunces-display + Inter-body system as the existing "People you can follow" section. Additive only; no layout regressions on the existing surface. The ToS checkbox copy on the handle form names the actual artifacts ("Terms", "Community Guidelines", "Privacy") with real links rather than a generic "I agree to the terms" — gives the user a real choice. Error message on a failed gate is warm ("Please accept the Terms..."), not legalistic. **Brand voice:** "Jettison" only as a proper noun; no emojis; no exclamation marks.
-- **Code review:** All three lib modules `import "server-only"`. PG error codes mapped to enum result codes in every public helper; no raw `error.message` leaked across the trust boundary. `lib/images.ts` rolls back the bucket object on row-insert failure, so the substrate doesn't leak bytes during normal operation. `markImageRejected` retains the pending object intentionally for the audit window; `markImageApproved` logs but does not fail when the post-copy remove fails — both paths assume the cleanup job filed as `tripplanner-u4c`. `getClient` workaround in `lib/trips.ts` was removed entirely; the helpers now call `await createClient()` directly. Idempotent shapes preserved (`hasAcceptedCurrentTos` returns boolean rather than throwing on no-row).
-
-### Out of scope (explicit deferrals)
-
-- Trip create/update/leave Server Actions + detail page — [`tripplanner-718`](#) (new, discovered-from `s3a.3`).
-- Rejected/orphaned pending-bucket cleanup job — [`tripplanner-u4c`](#) (new, discovered-from `s3a.4`).
-- CSAM scan integration (reintroduces `pending_media` state) — [`tripplanner-s3a.5`](#) (existing).
-- Manual moderator queue UI — [`tripplanner-s3a.6`](#) (existing).
-- Avatar upload UI + `profiles.avatar_image_id` FK — [`tripplanner-s3a.21`](#) (existing).
-- AI auto-classification on uploaded images — [`tripplanner-45u`](#) (existing).
-- Trip Posts (text + photos) — [`tripplanner-s3a.7`](#) (existing).
-
-### Lessons surfaced
-
-A new lesson appended to [`tasks/lessons.md`](lessons.md): _2026-04-20 — Three more parallel chunks: shared mutable file pre-allocation, storage.objects ownership constraints, and `supabase gen types` stderr leak._ Captures the rate-limit pre-allocation pattern (parent agent pre-edits the shared file in a prep commit so subagents don't have to coordinate writes), the `comment on policy ... on storage.objects` permission constraint (migration role lacks ownership over storage.objects), and the supabase CLI tendency to leak stderr lines into stdout when piped with `>` (must hand-trim "Initialising login role..." and the CLI update notice from the regenerated `database.types.ts`).
+- **Architecture.** Identity-dependent checks live in `private` SECURITY DEFINER helpers with `search_path = ''`, and take identity only from `auth.uid()`. The `private` schema isn't exposed over the API. Writes that must be atomic, or whose limits clients must not choose, go through RPCs that revoke `public` and `anon` explicitly.
+- **PM.** UAT-1 is a deliberate subset of the MVP: the trip loop, money and text posts. Photos wait on the moderation queue and CSAM gates. Open questions on edit rights, leftover cents, settlement rights and invite defaults are listed in the test plan, so each Phase 2 chunk answers them.
+- **UI/UX.**
+  - Sign-in now works when the link opens on a different device or in an in-app browser, and the code step masks the email.
+  - The invite-only screen offers "Use a different email".
+  - The contrast fixes are still open (`2o5.11`).
+- **Code review.**
+  - No raw database or auth error text reaches the UI.
+  - Read helpers throw, so an outage looks like an error rather than "nothing here".
+  - `pnpm check:secrets` guards the client boundary in CI.

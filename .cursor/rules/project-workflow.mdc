@@ -20,6 +20,8 @@ alwaysApply: true
 ## Proof before "done"
 
 - Never mark work complete without **evidence**: typecheck, targeted tests, command output, manual repro, screenshot for UI.
+- Anything touching the database: `supabase test db` green (pgTAP, as anon and as two users). Anything touching a user flow: `pnpm test:e2e`. Typecheck, lint and a clean `supabase db push` are necessary, not sufficient — they let a policy outage sit unnoticed for six months (`tasks/lessons.md`, 2026-10-29).
+- Read helpers throw `DataAccessError` (`lib/errors.ts`) instead of returning empty results on a query error, so failures surface instead of looking like "no data".
 - Compare behavior vs baseline when relevant.
 - **Staff-engineer bar:** would this ship without embarrassment?
 

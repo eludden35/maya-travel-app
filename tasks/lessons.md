@@ -89,3 +89,35 @@ Skim this file at session start when the upcoming task touches an area you have 
 - **Correction:** (1) Parent agent **pre-allocated both rate-limit constants in a separate prep commit** before launching the subagents, so both could consume `RATE_LIMITS.IMAGES_UPLOAD` and `RATE_LIMITS.TOS_ACCEPT` from existing constants. The prep commit explicitly documents in the file comment that the two entries are reserved for the parallel chunks. (2) Removed the four `comment on policy ... on storage.objects` lines from the s3a.4 migration and replaced them with an explanatory comment block at the top of the migration; the policy creates/drops still execute fine. (3) Hand-trimmed the two stray lines from `database.types.ts` after regen. Both stripped lines are stable text ("Initialising login role..." and the CLI update notice header), so future passes can grep-and-strip programmatically if this recurs.
 - **Generalization:** (a) **Identify shared mutable files in pre-flight, not in the subagent prompt.** When two parallel chunks both need to extend the same file (constants table, registry, route table, env example), the parent agent does the pre-allocation in a prep commit; subagents only consume. The signal: any file whose contents are a flat list of named entries (constants, routes, registry keys, env vars) is a candidate. (b) **`storage.objects` is `supabase_storage_admin`-owned**: you can `create policy` / `drop policy` on it but you cannot `comment on policy` it from a regular migration. Skip the documentation comment, put the rationale in a top-of-migration comment block instead. The same constraint likely applies to other Supabase-managed schemas (`auth.*`, `realtime.*`); when in doubt, write the doc as a SQL comment block, not as a `comment on ...` statement. (c) **Treat `supabase gen types > database.types.ts` output as untrusted** — always open the file after regen and verify the first and last few lines are valid TypeScript, not CLI status text. Better still, use `2>/dev/null` on the redirect or pipe through `awk '/^export type Json/,/^} as const$/'` to bracket the real output.
 - **Followed up by:** This lesson. The shared-mutable-file pre-allocation pattern should be promoted into the [`project-orchestration`](../.cursor/skills/project-orchestration/SKILL.md) skill the next time it's edited (likely as an addition to the "Parallel chunks" section that the 2026-04-19 lesson already established). The `storage.objects` permission constraint should be promoted into the [`project-supabase`](../.cursor/skills/project-supabase/SKILL.md) skill (a one-liner under "Migrations" — "you can create/drop policies on `storage.objects` but cannot `comment on` them; put the rationale in a SQL comment block instead"). The `gen types` stderr leak should be added to the same skill as a "regen gotcha." No new Beads filed for these — they're orchestration tightening, not feature work. Two real follow-up Beads filed for honest deferrals from the chunks themselves: [`tripplanner-718`](#) (trip create/update/leave Server Actions + detail page, discovered-from `s3a.3`) and [`tripplanner-u4c`](#) (rejected/orphaned pending-bucket cleanup job, discovered-from `s3a.4`).
+
+## 2026-10-29 — Green typecheck + lint + `db push` is not proof that RLS works
+
+- **Context:** UAT-readiness review of the whole app (epic `tripplanner-2o5`). Every chunk since April closed on `tsc` + `eslint` + a clean `supabase db push`. No check ever signed in as a user and read a row through the new policies.
+- **Mistake:** Policy bugs shipped this way, two of them P0:
+  1. `trip_members_select` queried `trip_members` itself. Postgres raises 42P17 "infinite recursion detected in policy" at query rewrite, so every signed-in read of `profiles`, `trips` and `trip_members` failed. The lib helpers logged and returned `null` / `[]`, so users saw "That handle is taken" instead of an error.
+  2. The profile guard trigger ran `before update` only, while the table grants allowed INSERT. Any new account could create its profile with `is_moderator = true`.
+  3. Subqueries inside a policy run under the caller's RLS, so "shares a trip with" checks either saw nothing or recursed.
+  4. `revoke ... from public` on a new function did nothing: Supabase grants EXECUTE to `anon` and `authenticated` directly. The identity-trusting rate-limit RPC was therefore callable without signing in.
+  5. Two more visibility holes:
+     - "Unlisted = knowing the id" doesn't hold over PostgREST, because `?visibility=eq.unlisted` lists those trips.
+     - INSERT ... RETURNING needs a SELECT policy that covers the new row, so private trips couldn't be created at all.
+- **Correction:** One corrective migration, [`20261029120000_rls_hardening.sql`](../supabase/migrations/20261029120000_rls_hardening.sql):
+  - SECURITY DEFINER helpers in a non-exposed `private` schema, with `search_path = ''` and identity taken only from `auth.uid()`.
+  - A `before insert or update` guard and column-level UPDATE grants.
+  - RPCs that revoke `public, anon` explicitly.
+  - Unlisted reads only through `get_trip(id)`.
+
+  Read helpers now throw `DataAccessError`. A pgTAP suite in `supabase/tests/database/` reproduces each finding as anon, user A and user B.
+- **Generalization:**
+  - (a) A migration that adds or changes a policy is done only when a pgTAP test reads and writes through it as anon and as two different signed-in users, plus one signed-in smoke test in the app.
+  - (b) A policy never references its own table. Cross-table membership checks go through a `private` SECURITY DEFINER helper.
+  - (c) Guard triggers cover INSERT as well as UPDATE. Revoking the privilege beats guarding it.
+  - (d) Every new function gets an explicit `revoke ... from public, anon`.
+  - (e) A data helper that can't read must throw, so empty and broken look different.
+  - (f) `supabase test db` runs pg_prove in Docker even with `--linked`. Without Docker, run the suite in CI.
+- **Followed up by:**
+  - [`.cursor/rules/supabase-security.mdc`](../.cursor/rules/supabase-security.mdc): the "Policy patterns that bit us" section.
+  - [`.cursor/rules/project-workflow.mdc`](../.cursor/rules/project-workflow.mdc): proof now includes `supabase test db`.
+  - [`.cursor/skills/project-supabase/SKILL.md`](../.cursor/skills/project-supabase/SKILL.md): the local-stack workflow, the pgTAP step and new gotchas. It also gets the promotions the 2026-04-19 and 2026-04-20 lessons promised: migration immutability, the `storage.objects` comment limit and the gen-types stderr leak.
+  - [`.cursor/skills/project-orchestration/SKILL.md`](../.cursor/skills/project-orchestration/SKILL.md): pre-allocate shared mutable files.
+  - CI's `database` job runs the suite on every PR.

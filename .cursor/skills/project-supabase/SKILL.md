@@ -26,15 +26,17 @@ Replace `NEXT_PUBLIC_*` with the framework's public-prefix when not on Next; the
 
 ## Local + linked workflow
 
+Development runs against the **local stack** (Docker). The hosted project `siaygwtwgvgjoircgpoa` is the **UAT** environment; CI applies migrations to it on every push to `main` (`.github/workflows/ci.yml`, job `migrate-uat`). Don't push migrations to it from a laptop.
+
 ```bash
-supabase login                       # one-time
-supabase link --project-ref <ref>    # one-time per repo
-supabase db pull                     # bring remote schema down as a baseline migration (first time only)
-supabase db push                     # apply local migrations to the linked project
-supabase gen types typescript --linked > types/supabase.ts
+supabase start                       # local stack; Mailpit inbox at http://127.0.0.1:54324
+supabase status -o env               # values for .env.development.local
+supabase db reset                    # re-apply every migration + supabase/seed.sql
+supabase test db                     # pgTAP suite in supabase/tests/database/
+supabase gen types typescript --local > database.types.ts 2>/dev/null
 ```
 
-Commit generated types. Reviewers should reject `any` or hand-rolled DB row types when generated types are available.
+Commit generated types. Reviewers should reject `any` or hand-rolled DB row types when generated types are available. Always open `database.types.ts` after regenerating: without `2>/dev/null`, CLI status lines ("Initialising login role...", the update notice) land in the file.
 
 ## Migration immutability
 
@@ -44,6 +46,13 @@ When you need to "close" a `TODO(<future-bead>)` marker that a previous migratio
 
 For parallel-chunk discipline (multiple chunks adding migrations concurrently), see the **Parallel chunks** section of [`project-orchestration`](../project-orchestration/SKILL.md).
 
+## Gotchas
+
+- **`storage.objects` is owned by `supabase_storage_admin`.** A migration can `create policy` / `drop policy` on it but cannot `comment on policy` (SQLSTATE 42501). Document storage policies in a SQL comment block instead. The same likely applies to `auth.*` and `realtime.*`.
+- **Policies and recursion / caller RLS:** see "Policy patterns that bit us" in [`.cursor/rules/supabase-security.mdc`](../../rules/supabase-security.mdc). Use the `private.*` helpers from `20261029120000_rls_hardening.sql`.
+- **`supabase test db` always needs Docker.** It runs pg_prove in a container even with `--linked` or `--db-url`. With Docker down, let CI's `database` job run the suite.
+- **The linked project doesn't need the DB password** for `migration list`, `db push`, `db lint` or `gen types --linked`: after `supabase login`, the CLI creates a temporary login role ("Initialising login role...").
+
 ## New table → checklist
 
 For every new user-facing table, in **the same migration**:
@@ -52,15 +61,16 @@ For every new user-facing table, in **the same migration**:
 2. `alter table … enable row level security;`.
 3. Add **scoped policies** — never `using (true)` on user data in production. See `.cursor/rules/supabase-security.mdc`.
 4. Add **indexes** on columns referenced by RLS predicates and common filters (`user_id`, `trip_id`, FK columns).
-5. If columns hold money, use **`numeric`** with explicit precision/scale — never `float`.
+5. If columns hold money, store **integer minor units** (`bigint` cents) with one currency per trip — never `float`. Splits stay exact and leftover cents are assigned deterministically (UAT-1 decision, 2026-10-29).
+6. Write **pgTAP tests** in `supabase/tests/database/` before calling it done.
 
 ```sql
 create table expenses (
   id uuid primary key default gen_random_uuid(),
   trip_id uuid not null references trips(id) on delete cascade,
-  payer_id uuid not null references auth.users(id),
-  amount numeric(12,2) not null check (amount >= 0),
-  currency text not null,
+  paid_by uuid not null references profiles(id),
+  amount_minor bigint not null check (amount_minor > 0),
+  currency char(3) not null,
   description text not null,
   created_at timestamptz not null default now()
 );
@@ -69,11 +79,7 @@ alter table expenses enable row level security;
 
 create policy "expenses_select_members" on expenses
   for select to authenticated
-  using (exists (
-    select 1 from trip_members m
-    where m.trip_id = expenses.trip_id
-      and m.user_id = auth.uid()
-  ));
+  using (private.is_trip_member(trip_id));
 
 create index expenses_trip_id_idx on expenses (trip_id);
 ```
@@ -86,7 +92,7 @@ create index expenses_trip_id_idx on expenses (trip_id);
 
 ## RLS review pointers
 
-- Every read path must work for an **unauthenticated** request without leaking data — explicitly test as `anon`.
+- Every read path must work for an **unauthenticated** request without leaking data — explicitly test as `anon`, in pgTAP (`tests.authenticate_as_anon()`).
 - Every write path must work for the right **authenticated** user **and fail** for anyone else — write a policy for both `using` (read) and `with check` (write) where relevant.
 - When in doubt, look at the `project-code-review` skill's "auth + payments + PII" section.
 

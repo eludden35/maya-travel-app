@@ -13,6 +13,18 @@ alwaysApply: false
 - Prefer `auth.uid() = user_id` (or membership-based) policies; document why a policy is broad if it must be.
 - Index every column you filter by in a policy (`user_id`, `trip_id`, etc.) to keep RLS-protected queries cheap.
 
+## Policy patterns that bit us (2026-10-29 review)
+
+Each of these shipped and was caught only by reading the policies months later. `supabase/migrations/20261029120000_rls_hardening.sql` fixed them; `supabase/tests/database/` keeps them fixed.
+
+- **A policy must never query its own table**, directly or through another table's policy. Postgres expands RLS while planning, so `trip_members`' policy selecting from `trip_members` raised 42P17 "infinite recursion detected in policy" for every signed-in read of `profiles`, `trips` and `trip_members`.
+- **A subquery inside a policy runs under the caller's RLS on the subqueried table.** A "both directions" block check against `blocks` only ever saw the caller's own rows, so "they blocked me" never matched.
+- **Fix for both:** put membership and relationship checks in `private.*` security-definer helpers (`private.is_trip_member`, `private.is_trip_organizer`, `private.shares_trip_with`, `private.has_blocked_me`, `private.blocked_either_way`) and call them from policies. They run as the table owner, so they see every row and never recurse.
+- **Security definer functions:** `set search_path = ''`; take identity only from `auth.uid()`, never from an argument (`try_consume_rate_limit(p_profile_id, ...)` let anyone spend anyone's quota); and `revoke ... from public, anon` explicitly — Supabase grants EXECUTE on new `public` functions to `anon` directly, so revoking from `public` alone does nothing.
+- **Grants are part of the policy.** A BEFORE UPDATE guard does nothing against INSERT (`is_moderator = true` on a self-inserted profile). Revoke INSERT / UPDATE where clients must not write, grant column-level UPDATE for the editable columns, and route multi-row writes through an RPC so they are atomic.
+- **"Unlisted" is not hidden.** RLS never requires an id predicate; any row a policy returns can be listed with the publishable key. By-link reads go through an RPC that takes the exact id (`public.get_trip`).
+- **INSERT ... RETURNING needs the SELECT policy too.** If the creator can't read the new row back (no organizer branch), `insert().select()` fails.
+
 ## Hard rules from ADR 0002 (social vision pivot)
 
 These rules are **non-negotiable** and survive every later migration unless explicitly superseded by an ADR superseding [`docs/adr/0002-social-vision-pivot.md`](../../docs/adr/0002-social-vision-pivot.md). They are also encoded as items in [`.cursor/rules/project-review-checklist-sql.mdc`](project-review-checklist-sql.mdc).
@@ -25,13 +37,7 @@ These rules are **non-negotiable** and survive every later migration unless expl
 -- GOOD: members-only, regardless of trip visibility or follower status
 create policy "expenses_select_members" on expenses
   for select to authenticated
-  using (
-    exists (
-      select 1 from trip_members tm
-      where tm.trip_id = expenses.trip_id
-        and tm.profile_id = auth.uid()
-    )
-  );
+  using (private.is_trip_member(trip_id));
 
 -- BAD: any branch that fans out money rows on visibility = 'public'
 -- BAD: any branch that fans out money rows to followers
@@ -112,6 +118,8 @@ export const adminClient = createClient(URL, process.env.SUPABASE_SECRET_KEY!);
 ## Migrations
 
 - Migrations are the source of truth for schema. **No ad-hoc dashboard changes** in production.
-- Generate types after schema changes (`supabase gen types …`) and commit them.
+- Applied migrations are immutable. Fix or extend a policy in a **new** migration (`drop policy` + `create policy`).
+- **Definition of done for a migration:** pgTAP tests in `supabase/tests/database/` that run as `anon` and as two different signed-in users (helpers in `000-setup.sql`), and `supabase test db` green. After it reaches a hosted environment, a signed-in smoke test there. Typecheck, lint and a clean `supabase db push` prove nothing about RLS.
+- Generate types after schema changes and commit them: `supabase gen types typescript --local > database.types.ts 2>/dev/null` (without `2>/dev/null` CLI status lines leak into the file).
 
 For deeper Supabase patterns, load the workspace **Supabase skill** and the `project-supabase` skill.

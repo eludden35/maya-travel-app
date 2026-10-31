@@ -42,6 +42,7 @@ When the user asks for parallel chunks (or you propose them), follow this contra
 5. **File honest-deferrals as real Beads with `--blocked-by` linkage.** When a chunk's AC has lines that must be deferred because they would have overlapped files with a parallel chunk in flight, file a follow-up Bead with `--blocked-by` pointing at the chunk that surfaced the deferral, and `--discovered-from` pointing at the chunk that surfaced it. Append mirroring notes to any downstream Beads that the deferred wiring will eventually have to honor.
 6. **Three-way split of `database.types.ts`.** When ≥2 parallel chunks add to the same regenerated `database.types.ts`, split the diff across commits using `git add -p`. Each commit's checkout must `tsc` cleanly in isolation — the table types and function signatures a chunk's `lib/*` modules consume must land in the same commit as those modules.
 7. **Commit one chunk at a time, in dependency order.** If chunk B's policy extension supersedes a `TODO(chunk-B)` marker that chunk A left in a historical migration, B's commit lands after A's. The historical migration file is **never** modified — close the seam in B's new migration via `drop policy / create policy`.
+8. **Pre-allocate shared mutable files in a prep commit.** When two chunks both need to add an entry to the same list-shaped file (a constants table, registry, route list, env template), the parent agent adds both entries first; subagents only consume them ([`tasks/lessons.md` 2026-04-20](../../../tasks/lessons.md)).
 
 ## Self-improvement loop
 
@@ -57,7 +58,8 @@ At session start, when the upcoming task touches an area you have lessons about,
 
 Never mark a chunk done without **evidence**:
 
-- Typecheck and targeted tests run and pass.
+- Typecheck and targeted tests run and pass: `pnpm typecheck`, `pnpm lint`, `pnpm test`, and for database work `supabase test db`.
+- For a user-facing flow, the Playwright smoke (`pnpm test:e2e`) passes against the local stack.
 - Repro steps performed (for bug fixes).
 - Visual / manual check (for UI).
 - Diff against baseline behavior when relevant.

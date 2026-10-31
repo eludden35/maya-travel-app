@@ -35,16 +35,18 @@ Locked in [`docs/adr/0001-framework-choice.md`](docs/adr/0001-framework-choice.m
 - **Styling + tokens:** **Tailwind CSS v4** with the `@theme` block in [`app/globals.css`](app/globals.css) as the single source of truth for design tokens (warm palette, type ramp, spacing scale).
 - **Type system:** Fraunces (display) + Inter (text) + JetBrains Mono (money tables only) — loaded via `next/font/google` in [`app/layout.tsx`](app/layout.tsx).
 - **Hosting:** **Vercel** (preview URLs per branch).
-- **Package manager:** **pnpm**.
-- **Test runner / CI:** TBD post-scaffold (default recommendation: Vitest; Vercel checks or GitHub Actions). Tracked in Beads.
+- **Runtime + package manager:** **Node 24** ([`.nvmrc`](.nvmrc)) and **pnpm 11** (`packageManager` in [`package.json`](package.json)).
+- **Environments (2026-10-29):** local Supabase in Docker (`supabase start`) for development. The hosted project `jettison` (`siaygwtwgvgjoircgpoa`) is **UAT**: test data only, invite-only via `private.onboarding_allowlist`. Production gets a new project at launch.
+- **Tests / CI (2026-10-29):** **Vitest** (unit, `lib/**/*.test.ts`), **pgTAP** ([`supabase/tests/database/`](supabase/tests/database/), `supabase test db`) and **Playwright** (mobile smoke in [`e2e/`](e2e/), sign-in codes read from the local Mailpit inbox). [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs all three plus `pnpm check:secrets` on every PR. It applies migrations to UAT on `main` once the `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD` repo secrets exist; after that, nobody pushes migrations from a laptop.
+- **Errors:** **Sentry** (`@sentry/nextjs`), on only when `NEXT_PUBLIC_SENTRY_DSN` is set, with `sendDefaultPii: false`.
 
-For App Router conventions (Server Components default, Server Actions, Route Handlers, and the hard rule against `SUPABASE_SERVICE_ROLE_KEY` in client-bundled modules), see [`.cursor/rules/typescript-react.mdc`](.cursor/rules/typescript-react.mdc). For deep Supabase patterns, read the workspace **Supabase skill** before changing schema or auth code.
+For App Router conventions (Server Components default, Server Actions, Route Handlers, and the hard rule against `SUPABASE_SECRET_KEY` in client-bundled modules), see [`.cursor/rules/typescript-react.mdc`](.cursor/rules/typescript-react.mdc). For deep Supabase patterns, read the workspace **Supabase skill** before changing schema or auth code.
 
 ## Issue tracking — Beads (`bd`)
 
 - **Beads (`bd`)** is the canonical durable issue tracker for this repo. Issues live git-backed under `.beads/`.
 - **Install (pinned):** `brew install beads` on macOS; upstream curl script as a Linux/CI fallback.
-- **Version major:** TBD on first run — pin **either** `bd` 0.49.x **or** 0.50+ (Dolt-backed) here once chosen, and stick with it.
+- **Version (pinned):** **`bd` 0.63.x**, Dolt server mode. If `bd` reports the Dolt server unreachable, run `bd dolt start` (`bd dolt status` to check).
 - **Daily commands:** `bd ready` (unblocked work), `bd create … --json`, `bd show <id> --json`, `bd update --claim`. Prefer `--json` for any scripted/agent use.
 - **Known `bd` caveat:** `bd ready` currently surfaces issues that are explicitly `blocked-by` an open issue (cache/derived-fields bug — tracked as `tripplanner-3uu`). Treat `bd dep list <id>` and the `dependencies` array on `bd show --json` as the source of truth for what is actually blocked; do not rely on `bd ready` alone when a blocker has been declared.
 - **Do not** create a root `TODO.md` or any other ad-hoc backlog file. The only blessed markdown task surface is [`tasks/todo.md`](tasks/todo.md) (session scratchpad — see below).
@@ -54,7 +56,7 @@ For App Router conventions (Server Components default, Server Actions, Route Han
 - **Plan first.** Use Cursor Plan mode for any non-trivial task (3+ steps, or architectural / security / data-model decisions).
 - **Per-chunk task file:** [`tasks/todo.md`](tasks/todo.md) — checkable plan, progress, and a short Review section. Link the active Bead ID at the top when applicable.
 - **Lessons:** [`tasks/lessons.md`](tasks/lessons.md) — append a dated pattern + fix after every user correction. If a mistake repeats, tighten a Cursor rule or skill.
-- **Proof before "done":** evidence (typecheck, tests, logs, repro) is required before marking work complete. See [`.cursor/rules/project-workflow.mdc`](.cursor/rules/project-workflow.mdc) and the `project-orchestration` skill.
+- **Proof before "done":** evidence (typecheck, tests, logs, repro) is required before marking work complete. For a migration, typecheck, lint and a clean `db push` are not proof: pgTAP tests must exercise its policies as anon and as two signed-in users (`supabase test db`). See [`.cursor/rules/project-workflow.mdc`](.cursor/rules/project-workflow.mdc) and the `project-orchestration` skill.
 
 ## Virtual software team (perspectives, not personas)
 
@@ -77,5 +79,6 @@ These are perspectives to think through, not separate chat personas, unless you 
 
 - Product narrative: [`app-context/initial-app-idea.md`](app-context/initial-app-idea.md)
 - Engineering glossary + boundaries: [`app-context/product-engineering.md`](app-context/product-engineering.md)
+- UAT-1 test plan (epic `tripplanner-2o5`): [`docs/uat/uat-1-test-plan.md`](docs/uat/uat-1-test-plan.md)
 - Always-on rules: [`.cursor/rules/`](.cursor/rules/)
 - Project skills: [`.cursor/skills/`](.cursor/skills/)

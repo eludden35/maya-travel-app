@@ -3,7 +3,6 @@
   "backend": "dolt",
   "dolt_mode": "server",
   "dolt_server_host": "127.0.0.1",
-  "dolt_server_port": 3308,
   "dolt_server_user": "root",
   "dolt_database": "tripplanner",
   "project_id": "6be5f2af-286e-4c1e-a61a-2f32c7a848ff"
