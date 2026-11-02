@@ -43,16 +43,16 @@ Pay extra attention here:
 
 ### 4. Tests
 
-The bar scales with risk:
+The bar scales with risk. CI (`.github/workflows/ci.yml`) runs all three runners on every PR.
 
-| Risk | Required evidence |
-|------|-------------------|
-| **Money math, RLS policy, auth flow, webhook handler** | Targeted automated tests **must** exist and pass. |
-| **Domain logic with branches** | Targeted tests for the branches. |
-| **Pure UI restyle** | Manual repro / screenshot is acceptable when no test runner exists yet; promote to a test once one is chosen. |
-| **Trivial copy/typo** | Spot check; no test required. |
-
-If the test runner has not been chosen yet, document the **manual** verification clearly in `tasks/todo.md` Review.
+| Risk | Runner | Required evidence |
+|------|--------|-------------------|
+| **Money math, webhook handler** | Vitest (`pnpm test`) | Targeted tests **must** exist and pass. Arithmetic gets property-style tests: shares sum to the amount across many amounts × member counts. |
+| **Domain logic with branches** | Vitest (`pnpm test`) | Targeted tests for the branches. |
+| **RLS policy** | pgTAP via `supabase test db` (`supabase/tests/database/`) | Tests **must** read and write through each new or changed policy as anon and as two signed-in users. Money tables: non-members, followers and public-trip viewers get 0 rows. |
+| **Auth flow, user flow** | Playwright (`pnpm test:e2e`, mobile viewport, `e2e/`) | A smoke test of the flow **must** exist and pass. |
+| **Pure UI restyle** | None required | Manual repro or screenshot in the PR description or the `tasks/todo.md` Review; add a Playwright check if a flow changes. |
+| **Trivial copy/typo** | None | Spot check. |
 
 ### 5. Performance
 
