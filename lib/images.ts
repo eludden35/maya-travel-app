@@ -6,6 +6,7 @@ import sharp from "sharp";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/database.types";
+import { DataAccessError } from "@/lib/errors";
 import { RATE_LIMITS, withRateLimit } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient as createServerClient } from "@/lib/supabase/server";
@@ -202,12 +203,14 @@ async function stripExifAndReencode(input: Buffer): Promise<StripResult> {
  *      the AC line "EXIF GPS strip runs server-side before any row is
  *      inserted."
  *   4. admin-client `upload` into images-pending/{uploader}/{uuid}.{ext}.
- *      Uses the admin client (RLS-bypass) so the bucket write is uniform
- *      with the approve/reject paths; the storage_pending_insert_self
- *      policy would also accept this write under the user's session.
- *   5. user-session `insert` into `images` (RLS-checked via
- *      images_insert_self_pending). If this fails, we delete the orphaned
- *      bucket object so we don't leak bytes.
+ *   5. admin-client `insert` into `images`. If this fails, we delete the
+ *      orphaned bucket object so we don't leak bytes.
+ *
+ * Steps 4 and 5 must use the admin client: since 20261029120000_rls_hardening
+ * clients have no INSERT on `images` and no storage policy for
+ * images-pending uploads, so this helper — after the sharp re-encode — is
+ * the only way an image enters the moderation queue. The uploader id comes
+ * from the verified session, never from the caller.
  *
  * Returns a discriminated-union result; never throws across the trust
  * boundary.
@@ -247,7 +250,7 @@ export async function uploadPendingImage(
 
     const imageId = randomUUID();
     const ext = extensionForMime(stripped.mime);
-    const pendingPath = `${opts.uploaderId}/${imageId}.${ext}`;
+    const pendingPath = `${user.id}/${imageId}.${ext}`;
 
     const adminClient = createAdminClient();
     const { error: uploadError } = await adminClient.storage
@@ -266,7 +269,7 @@ export async function uploadPendingImage(
 
     const insertRow: ImageInsert = {
       id: imageId,
-      uploader_id: opts.uploaderId,
+      uploader_id: user.id,
       // TODO(s3a.5): change to "pending_media" once the CSAM scan landing
       // in tripplanner-s3a.5 owns the pending_media → pending_review
       // transition. Inserting directly as pending_review until then keeps
@@ -280,7 +283,7 @@ export async function uploadPendingImage(
       mime_type: stripped.mime,
     };
 
-    const { data: inserted, error: insertError } = await sessionClient
+    const { data: inserted, error: insertError } = await adminClient
       .from("images")
       .insert(insertRow)
       .select("*")
@@ -337,8 +340,7 @@ export async function getImageById(id: string): Promise<ImageRow | null> {
     .eq("id", id)
     .maybeSingle();
   if (error) {
-    console.error("getImageById failed", error.message);
-    return null;
+    throw new DataAccessError("getImageById", error);
   }
   return data;
 }

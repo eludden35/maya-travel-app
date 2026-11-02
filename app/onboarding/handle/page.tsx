@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import { submitHandleAction } from "@/app/onboarding/handle/actions";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentProfile } from "@/lib/profiles";
+import { canCompleteOnboarding, getCurrentProfile } from "@/lib/profiles";
 
 import { HandleForm } from "./handle-form";
 
@@ -20,6 +20,8 @@ import { HandleForm } from "./handle-form";
  * Routing rules (enforced here, not just by `requireProfile`):
  *  - Not signed in -> redirect to /auth/sign-in.
  *  - Signed in AND profile already exists -> redirect to /.
+ *  - Signed in, no profile, email not on the invite-only allow-list ->
+ *    render the invite-only screen instead of the form.
  *  - Signed in AND no profile -> render this page.
  *
  * `?error=...` from the Server Action is read here and rendered next to the
@@ -41,6 +43,10 @@ export default async function OnboardingHandlePage({
   const existing = await getCurrentProfile();
   if (existing) {
     redirect("/");
+  }
+
+  if (!(await canCompleteOnboarding())) {
+    return <InviteOnly email={user.email ?? null} />;
   }
 
   const { error } = await searchParams;
@@ -110,6 +116,9 @@ function errorMessageFor(code: string | undefined): string | null {
       return "Too many tries. Take a breath and try again in a few minutes.";
     case "tos_required":
       return "Please read and accept the three documents first.";
+    case "invite_required":
+      return "Jettison is invite-only while we test. Ask the friend who invited you to add your email.";
+    case "invalid_tos_version":
     case "unknown":
       return "Something went wrong. Please try again.";
     default:
@@ -127,4 +136,48 @@ function errorFieldFor(code: string | undefined): "handle" | "display_name" | nu
     default:
       return null;
   }
+}
+
+/**
+ * Shown instead of the form while Jettison is invite-only and the signed-in
+ * email is not on `private.onboarding_allowlist`. The account exists (it was
+ * created by the sign-in email) but has no profile, so it can see nothing.
+ */
+function InviteOnly({ email }: { email: string | null }) {
+  return (
+    <main className="flex flex-1 flex-col items-center justify-center px-6 py-12 bg-paper text-ink">
+      <div className="w-full max-w-sm flex flex-col gap-8">
+        <header className="flex flex-col gap-2">
+          <p className="font-mono text-xs uppercase tracking-[0.2em] text-secondary">
+            Jettison
+          </p>
+          <h1 className="font-display text-3xl leading-tight">
+            Jettison is invite-only for now.
+          </h1>
+          <p className="text-secondary text-sm">
+            We&apos;re testing with a small group of friends.
+            {email ? (
+              <>
+                {" "}
+                Ask the person who invited you to add{" "}
+                <span className="font-mono text-ink break-all">{email}</span>,
+                then sign in again.
+              </>
+            ) : (
+              <> Ask the person who invited you to add your email.</>
+            )}
+          </p>
+        </header>
+
+        <form action="/auth/sign-out" method="post">
+          <button
+            type="submit"
+            className="w-full h-12 rounded-md border border-hairline bg-card text-ink font-medium hover:bg-paper"
+          >
+            Use a different email
+          </button>
+        </form>
+      </div>
+    </main>
+  );
 }

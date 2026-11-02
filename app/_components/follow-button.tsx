@@ -68,7 +68,9 @@ export function FollowButton({
             ? "That profile is gone."
             : result.error === "cannot_self_follow"
               ? "You can’t follow yourself."
-              : "Something went wrong. Try again.",
+              : result.error === "unavailable"
+                ? "You can’t follow this account."
+                : "Something went wrong. Try again.",
       );
     });
   };

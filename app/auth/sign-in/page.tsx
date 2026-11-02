@@ -1,25 +1,26 @@
-"use client";
-
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useTransition } from "react";
 
-import { signInWithMagicLink } from "@/app/auth/actions";
+import { readSignInEmail } from "@/lib/auth-flow";
+
+import { CodeForm, EmailForm } from "./sign-in-forms";
 
 /**
- * Minimal magic-link sign-in form (`"use client"` because it owns the
- * pending state and reads the `?sent=1` / `?error=...` query string).
- *
- * The actual auth call happens in the Server Action — this component is a
- * thin shell around `<form action={signInWithMagicLink}>`. `SUPABASE_SERVICE_ROLE_KEY`
- * is never imported here (or anywhere on the client side); see
- * `.cursor/rules/typescript-react.mdc`.
+ * Two-step email sign-in: send a code, then enter it (or tap the emailed
+ * link, which goes through /auth/confirm). The address between steps lives
+ * in an httpOnly cookie, so the URL only ever carries `step` and an enum
+ * `error` code — never the address and never free-form text.
  */
-export default function SignInPage() {
-  const search = useSearchParams();
-  const [pending, startTransition] = useTransition();
-  const sent = search.get("sent") === "1";
-  const error = search.get("error");
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ step?: string; error?: string; next?: string }>;
+}) {
+  const { step, error, next } = await searchParams;
+  const email = step === "code" ? await readSignInEmail() : null;
+  const showCode = email !== null;
+  const errorCopy = errorMessageFor(
+    step === "code" && !showCode ? "code_expired" : error,
+  );
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-6 py-12 bg-paper text-ink">
@@ -28,67 +29,63 @@ export default function SignInPage() {
           <p className="font-mono text-xs uppercase tracking-[0.2em] text-secondary">
             Jettison
           </p>
-          <h1 className="font-display text-3xl leading-tight">Sign in</h1>
+          <h1 className="font-display text-3xl leading-tight">
+            {showCode ? "Check your email" : "Sign in"}
+          </h1>
           <p className="text-secondary text-sm">
-            Enter your email and we&apos;ll send you a sign-in link.
+            {showCode ? (
+              <>
+                We sent a sign-in code to{" "}
+                <span className="font-mono text-ink">{maskEmail(email)}</span>.
+                Enter it below, or tap the link in the email.
+              </>
+            ) : (
+              "Enter your email and we’ll send you a sign-in code."
+            )}
           </p>
         </header>
 
-        <form
-          action={(formData) => {
-            startTransition(() => signInWithMagicLink(formData));
-          }}
-          className="flex flex-col gap-4"
-        >
-          <label className="flex flex-col gap-1">
-            <span className="text-sm text-secondary">Email</span>
-            <input
-              type="email"
-              name="email"
-              inputMode="email"
-              autoComplete="email"
-              enterKeyHint="send"
-              required
-              disabled={pending}
-              className="h-12 px-3 rounded-md border border-hairline bg-card text-ink focus-visible:outline-2 focus-visible:outline-ember"
-            />
-          </label>
+        {showCode ? <CodeForm /> : <EmailForm next={next ?? null} />}
 
-          <button
-            type="submit"
-            disabled={pending}
-            className="h-12 rounded-md bg-ember text-ink font-medium disabled:opacity-60"
-          >
-            {pending ? "Sending..." : "Send link"}
-          </button>
-        </form>
-
-        {sent ? (
-          <p
-            role="status"
-            aria-live="polite"
-            className="text-sm text-success"
-          >
-            Check your email for a sign-in link.
-          </p>
-        ) : null}
-
-        {error ? (
-          <p
-            role="alert"
-            className="text-sm text-error"
-          >
-            {error}
+        {errorCopy ? (
+          <p role="alert" className="text-sm text-error">
+            {errorCopy}
           </p>
         ) : null}
 
         <Link
-          href="/"
-          className="text-sm text-secondary underline-offset-4 hover:underline"
+          href={showCode ? "/auth/sign-in" : "/"}
+          className="min-h-11 inline-flex items-center text-sm text-secondary underline-offset-4 hover:underline"
         >
-          Back home
+          {showCode ? "Use a different email" : "Back home"}
         </Link>
       </div>
     </main>
   );
+}
+
+function maskEmail(email: string): string {
+  const [local = "", domain = ""] = email.split("@");
+  return `${local.slice(0, 1)}••••@${domain}`;
+}
+
+function errorMessageFor(code: string | undefined): string | null {
+  switch (code) {
+    case "missing_email":
+      return "Enter your email address.";
+    case "send_failed":
+      return "We couldn’t send the email. Try again in a minute.";
+    case "rate_limited":
+      return "Too many attempts. Wait a few minutes and try again.";
+    case "code_invalid":
+      return "That code didn’t work. Check the latest email, or send a new code.";
+    case "code_expired":
+      return "Your sign-in timed out. Enter your email again.";
+    case "link_invalid":
+      return "That sign-in link has expired or was already used. Request a new code.";
+    case "missing_code":
+      return "That sign-in link is incomplete. Request a new code.";
+    default:
+      return null;
+  }
 }

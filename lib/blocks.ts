@@ -1,5 +1,6 @@
 import "server-only";
 
+import { DataAccessError } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -187,33 +188,29 @@ export async function unmuteProfile(
 }
 
 /**
- * Bidirectional existence check: is `viewerId` blocking `otherId`, OR is
- * `otherId` blocking `viewerId`? Used by callers (e.g. future DM /
- * profile-page consumers) that want to gate a UI affordance behind the
- * same predicate the `follows_insert_self` policy uses.
- *
- * RLS-respecting: only rows where `auth.uid() = blocker_id` are visible
- * to the caller, so this only reliably detects blocks the caller knows
- * about (their own outbound, or — by recursion through `viewerId` being
- * the session user — incoming blocks if invoked under that session).
- * Practically this is invoked with `viewerId = auth.uid()`, which is
- * what makes the bidirectional check honest.
+ * Is the signed-in viewer blocking `otherId`? One direction only: RLS hides
+ * blocks made by other people, by design (the blocked party never learns of
+ * the block). Checks that must hold in both directions — following, and
+ * later DMs and feeds — live in RLS via `private.blocked_either_way`, and a
+ * profile that blocked the viewer is already hidden from profile reads.
  */
-export async function isBlockingOrBlocked(
-  viewerId: string,
-  otherId: string,
-): Promise<boolean> {
+export async function isBlocking(otherId: string): Promise<boolean> {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return false;
+  }
+
   const { count, error } = await supabase
     .from("blocks")
     .select("*", { count: "exact", head: true })
-    .or(
-      `and(blocker_id.eq.${viewerId},blocked_id.eq.${otherId}),and(blocker_id.eq.${otherId},blocked_id.eq.${viewerId})`,
-    );
+    .eq("blocker_id", user.id)
+    .eq("blocked_id", otherId);
 
   if (error) {
-    console.error("isBlockingOrBlocked failed", error.message);
-    return false;
+    throw new DataAccessError("isBlocking", error);
   }
   return (count ?? 0) > 0;
 }
@@ -234,8 +231,7 @@ export async function getBlockedProfileIds(
     .eq("blocker_id", viewerId);
 
   if (error) {
-    console.error("getBlockedProfileIds failed", error.message);
-    return [];
+    throw new DataAccessError("getBlockedProfileIds", error);
   }
   return (data ?? []).map((row) => row.blocked_id);
 }

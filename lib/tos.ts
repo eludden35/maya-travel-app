@@ -1,20 +1,17 @@
 import "server-only";
 
-import type { Database } from "@/database.types";
 import { CURRENT_TOS_VERSION, type TosVersion } from "@/lib/legal";
 import { createClient as createServerClient } from "@/lib/supabase/server";
-
-type TosAcceptanceInsert =
-  Database["public"]["Tables"]["tos_acceptances"]["Insert"];
 
 /**
  * Server-only ToS data-layer helpers (Bead tripplanner-s3a.24).
  *
- * Pure data layer — no `revalidatePath`, no UI side-effects. The Server
- * Action wrapper that sequences `createProfile` -> `acceptCurrentTos` lives
- * in `app/onboarding/handle/actions.ts` so the helpers here stay
- * reusable from a future `/legal/accept` interstitial (the deferred
- * `tripplanner-s3a.27` flow) without re-implementing the gate.
+ * Pure data layer — no `revalidatePath`, no UI side-effects. First
+ * acceptance happens inside the `complete_onboarding` RPC together with the
+ * profile insert (`lib/profiles.ts#completeOnboarding`). `acceptCurrentTos`
+ * here is for the re-acceptance interstitial after a version bump (the
+ * deferred `tripplanner-s3a.27` flow). Clients cannot insert into
+ * `tos_acceptances` directly; both paths go through RPCs.
  *
  * Why server-only: the helpers issue authenticated Supabase calls under
  * the caller's session cookie, which means RLS still applies. Pulling
@@ -48,7 +45,7 @@ type TosAcceptanceInsert =
  */
 export type AcceptResult =
   | { ok: true; alreadyAccepted: boolean }
-  | { ok: false; error: "unauthorized" | "unknown" };
+  | { ok: false; error: "rate_limited" | "unauthorized" | "unknown" };
 
 // ----------------------------------------------------------------------------
 // IP / UA masking
@@ -199,53 +196,42 @@ export async function hasAcceptedCurrentTos(
 
 /**
  * Record (or no-op) an acceptance row for the signed-in user against
- * `CURRENT_TOS_VERSION`. Idempotent on `(profile_id, version)` via the
- * UNIQUE constraint + supabase-js's `ignoreDuplicates: true` upsert
- * (which maps to PostgREST `Prefer: resolution=ignore-duplicates`, i.e.
- * `INSERT ... ON CONFLICT DO NOTHING`).
- *
- * On a duplicate, supabase-js returns an empty `data` array — we surface
- * that as `alreadyAccepted: true` so the caller can treat it as success
- * without inspecting SQL error codes.
+ * `CURRENT_TOS_VERSION`, via the `accept_tos` RPC. Idempotent on
+ * `(profile_id, version)`; a repeat call returns `alreadyAccepted: true`.
+ * The RPC charges the `tos_accept` rate limit and stamps `accepted_at`
+ * itself, so a direct API caller cannot backdate an acceptance.
  *
  * `opts.ip` and `opts.userAgent` are masked / truncated INSIDE this
- * helper before insert (see `maskIp` and `truncateUserAgent` above). The
- * caller passes the raw values from the request headers; the raw form
- * never reaches the DB.
+ * helper (see `maskIp` and `truncateUserAgent` above). The caller passes
+ * the raw values from the request headers; the raw form never reaches the
+ * DB.
  */
 export async function acceptCurrentTos(opts?: {
   ip?: string | null;
   userAgent?: string | null;
 }): Promise<AcceptResult> {
   const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { ok: false, error: "unauthorized" };
-  }
-
-  const insertRow: TosAcceptanceInsert = {
-    profile_id: user.id,
-    version: CURRENT_TOS_VERSION,
-    ip: maskIp(opts?.ip),
-    user_agent: truncateUserAgent(opts?.userAgent),
-  };
-
-  const { data, error } = await supabase
-    .from("tos_acceptances")
-    .upsert(insertRow, {
-      onConflict: "profile_id,version",
-      ignoreDuplicates: true,
-    })
-    .select("id");
+  const { data, error } = await supabase.rpc("accept_tos", {
+    p_version: CURRENT_TOS_VERSION,
+    p_ip: maskIp(opts?.ip) ?? undefined,
+    p_user_agent: truncateUserAgent(opts?.userAgent) ?? undefined,
+  });
 
   if (error) {
-    console.error("acceptCurrentTos insert failed", error.code, error.message);
+    console.error("acceptCurrentTos failed", error.code, error.message);
     return { ok: false, error: "unknown" };
   }
 
-  // `ignoreDuplicates: true` returns an empty array on conflict.
-  const alreadyAccepted = !data || data.length === 0;
-  return { ok: true, alreadyAccepted };
+  switch (data) {
+    case "ok":
+      return { ok: true, alreadyAccepted: false };
+    case "already_accepted":
+      return { ok: true, alreadyAccepted: true };
+    case "rate_limited":
+    case "unauthorized":
+      return { ok: false, error: data };
+    default:
+      console.error("acceptCurrentTos returned an unexpected status", data);
+      return { ok: false, error: "unknown" };
+  }
 }

@@ -36,7 +36,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Jettison",
   description:
-    "Jettison is the mobile-first way for groups to plan, split, and settle shared trips and events — so no one fronts the money or chases anyone afterward.",
+    "Jettison is the social network for group travel — discover trips worth joining with the people you actually know, plan them together, and split the money so no one fronts the bill.",
 };
 
 export const viewport: Viewport = {
