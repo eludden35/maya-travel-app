@@ -22,9 +22,10 @@ import { createClient } from "@/lib/supabase/server";
  * Surface names. Each must have a row in `private.rate_limit_rules`.
  *
  * `HANDLE_CREATE` and `TOS_ACCEPT` are charged inside the
- * `complete_onboarding` and `accept_tos` RPCs. `IMAGES_UPLOAD` is charged
- * by `uploadPendingImage`. The rest are reserved — call sites land in
- * tripplanner-s3a.25.
+ * `complete_onboarding` and `accept_tos` RPCs, and `TRIP_CREATE` and
+ * `TRIP_WRITE` inside the trip RPCs (tripplanner-718). `IMAGES_UPLOAD` is
+ * charged by `uploadPendingImage`. The rest are reserved — call sites land
+ * in tripplanner-s3a.25.
  */
 export const RATE_LIMITS = {
   HANDLE_CREATE: { surface: "handle_create" },
@@ -37,6 +38,8 @@ export const RATE_LIMITS = {
   JOIN_REQUEST: { surface: "join_request" },
   IMAGES_UPLOAD: { surface: "images_upload" },
   TOS_ACCEPT: { surface: "tos_accept" },
+  TRIP_CREATE: { surface: "trip_create" },
+  TRIP_WRITE: { surface: "trip_write" },
 } as const;
 
 export type RateLimitSpec = {

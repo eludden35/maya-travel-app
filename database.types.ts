@@ -393,6 +393,7 @@ export type Database = {
       trips: {
         Row: {
           created_at: string
+          currency: string
           description: string | null
           end_date: string | null
           id: string
@@ -404,6 +405,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          currency?: string
           description?: string | null
           end_date?: string | null
           id?: string
@@ -415,6 +417,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          currency?: string
           description?: string | null
           end_date?: string | null
           id?: string
@@ -455,10 +458,25 @@ export type Database = {
         Returns: string
       }
       consume_rate_limit: { Args: { p_surface: string }; Returns: number }
+      create_trip: {
+        Args: {
+          p_currency: string
+          p_description?: string
+          p_end_date?: string
+          p_name: string
+          p_start_date?: string
+        }
+        Returns: {
+          status: string
+          trip_id: string
+        }[]
+      }
+      delete_trip: { Args: { p_trip_id: string }; Returns: string }
       get_trip: {
         Args: { p_trip_id: string }
         Returns: {
           created_at: string
+          currency: string
           description: string | null
           end_date: string | null
           id: string
@@ -475,7 +493,32 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_trip_members: {
+        Args: { p_trip_id: string }
+        Returns: {
+          display_name: string
+          handle: string
+          joined_at: string
+          profile_id: string
+          role: Database["public"]["Enums"]["trip_member_role"]
+        }[]
+      }
       is_moderator: { Args: { profile_id: string }; Returns: boolean }
+      leave_trip: { Args: { p_trip_id: string }; Returns: string }
+      remove_trip_member: {
+        Args: { p_profile_id: string; p_trip_id: string }
+        Returns: string
+      }
+      update_trip: {
+        Args: {
+          p_description?: string
+          p_end_date?: string
+          p_name: string
+          p_start_date?: string
+          p_trip_id: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       image_state: "pending_media" | "pending_review" | "approved" | "rejected"
