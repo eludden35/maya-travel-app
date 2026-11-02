@@ -54,9 +54,9 @@ Defaults (not asked):
   - Home: "Plan a trip" link; trip rows link to `/trips/[id]`. The trips-first rework stays with `2o5.9`.
 - [x] Playwright: extend `e2e/smoke.spec.ts` to create a trip, open it, edit it and delete it, then check the old URL is "not found".
 - [x] §12 answers in the test plan, with S7-N3, S7-N4 and S8-N4.
-- [ ] Beads: notes on `718`, `2o5.1`, `2o5.2`, `2o5.3`, `2o5.6`, `2o5.9`.
+- [x] Beads: notes on `718`, `2o5.1`, `2o5.2`, `2o5.3`, `2o5.6`, `2o5.9`.
 - [x] Post-UAT follow-up Bead for organizer hand-off: `tripplanner-tbm`.
-- [ ] PR against `main`, CI green, Bead updated.
+- [ ] PR against `main`, CI green, Bead updated: [PR #3](https://github.com/eludden35/maya-travel-app/pull/3) is open; close `718` when it merges.
 
 ## Verification
 
