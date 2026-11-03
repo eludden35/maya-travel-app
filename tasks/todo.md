@@ -136,7 +136,7 @@ Defaults (not asked):
 
 # tripplanner-2o5.1: trip invite links (`trip_invites`, `accept_trip_invite`, `/join/[token]`)
 
-**Bead:** `tripplanner-2o5.1` (epic `tripplanner-2o5`; blocks `2o5.9` and `2o5.13`). **Test plan:** S2 steps 3–4, S3, S7 step 6, PV2, PV6 and §12 Q6 in [`docs/uat/uat-1-test-plan.md`](../docs/uat/uat-1-test-plan.md). **Status (2026-11-03):** built and verified locally; PR and CI pending. The founder accepted every recommended answer below on 2026-11-03.
+**Bead:** `tripplanner-2o5.1` (epic `tripplanner-2o5`; blocks `2o5.9` and `2o5.13`). **Test plan:** S2 steps 3–4, S3, S7 step 6, PV2, PV6 and §12 Q6 in [`docs/uat/uat-1-test-plan.md`](../docs/uat/uat-1-test-plan.md). **Status (2026-11-03):** built and verified locally; [PR #7](https://github.com/eludden35/maya-travel-app/pull/7) is open for the founder to merge, and the Bead stays in progress until then. The founder accepted every recommended answer below on 2026-11-03.
 
 ## Goal
 
@@ -247,7 +247,8 @@ Answered by the founder on 2026-11-03: the recommended column, for all four. The
   - opening the link again goes to the trip;
   - after the organizer replaces the link, the old one gets "no longer works".
 - [x] Test plan: answer §12 Q6, add Q8–Q10, and align S2 steps 3–4, S3, S7 step 6 and PV2 with what shipped.
-- [ ] Proof, then PR, CI green, and a note on the Bead.
+- [x] Proof (see Evidence), then [PR #7](https://github.com/eludden35/maya-travel-app/pull/7) and a note on the Bead linking it.
+- [ ] CI green and the founder merges; then close the Bead.
 
 ## Verification
 
