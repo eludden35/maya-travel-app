@@ -65,7 +65,7 @@ Testers are invited only when every row is checked.
 | E1 | P0 and P1 review findings 1–8 closed | Each finding's Bead is closed and has a pgTAP test that failed before the fix |
 | E2 | CI green | The latest `main` run passes typecheck, lint, Vitest, `supabase test db` and the Playwright mobile smoke test |
 | E3 | pgTAP green, including the money-privacy matrix | `supabase test db` passes; the matrix shows non-members, followers and public-trip viewers get 0 rows from `expenses`, `expense_shares` and `settlements` on private, unlisted and public trips |
-| E4 | Sentry receives errors | A forced error on UAT appears in Sentry within 5 minutes with no email address or IP in the event |
+| E4 | Sentry receives errors | First, the founder sets two things in Sentry that code can't (`tripplanner-7pl`). In Project Settings → Security & Privacy, turn on **Prevent Storing of IP Addresses**, and under Advanced Data Scrubbing add `[Replace] [Email Addresses] from [$string]`; leave the data scrubber and default scrubbers on. Then a forced error on UAT appears in Sentry within 5 minutes with no email address or IP anywhere in the event: user, request URL and headers, breadcrumbs or exception message |
 | E5 | Email lands | A sign-in email reaches the inbox, not spam, at one Gmail, one iCloud and one Outlook address; SPF, DKIM and DMARC pass in the headers |
 | E6 | UAT data reset | Trips and profiles hold only the founder's account; `select id, handle from profiles where is_moderator` returns the expected list |
 | E7 | Allow-list loaded | Every invited tester's email is in `private.onboarding_allowlist`, with no `*` or public-domain entries such as `@gmail.com`; an unlisted email reaches the "invite-only" screen; a listed one typed with capitals is accepted |

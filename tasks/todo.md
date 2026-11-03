@@ -345,6 +345,44 @@ Answered by the founder on 2026-11-03: the recommended column, for all four. The
 
 ### Follow-ups
 
-- `tripplanner-7pl` (P1, now blocks `2o5.13`, entry criterion E4): Sentry still collects client IPs and request bodies (emails, sign-in codes) by default.
+- `tripplanner-7pl` (P1, blocks `2o5.13`, entry criterion E4): Sentry collected client IPs and request bodies (emails, sign-in codes) by default. At the founder's request it's fixed in the same PR; see its section below.
 - `tripplanner-x6a` (P2, founder decision): whether links made by invite-admitted accounts can admit new accounts.
 
+# tripplanner-7pl: no IP address or email address in Sentry events (UAT entry E4)
+
+**Bead:** `tripplanner-7pl` (P1; blocks `2o5.13`). **Test plan:** E4. **Status (2026-11-03):** fixed in [PR #7](https://github.com/eludden35/maya-travel-app/pull/7) alongside `2o5.1`, at the founder's request; close the Bead when it merges. Two settings in Sentry itself are founder steps.
+
+## Goal
+
+No Sentry event, from the browser or the server, carries an email address or an IP address. SDK 11 ignores `sendDefaultPii`. Its `dataCollection` defaults sent the client IP, every request header, Server Action form bodies (email addresses, sign-in codes, trip notes), query strings and the server's host name.
+
+## Shipped
+
+- **`lib/sentry-options.ts`**, shared by the browser, server and edge runtimes:
+  - `userInfo: false`: no `user.ip_address`, Sentry's IP headers are dropped, and the browser SDK sends `infer_ip: "never"`, so Sentry doesn't take the IP from the connection;
+  - request headers: only `user-agent` and `x-vercel-id`; no response headers;
+  - no request or response bodies, cookies, query strings or local variables;
+  - `includeServerName: false`;
+  - `beforeSend` and `beforeBreadcrumb` also replace email addresses, typed or URL-encoded, with `[email]`.
+- **`AGENTS.md`:** the Sentry line no longer leans on `sendDefaultPii`.
+
+## Founder steps (in Sentry, not code)
+
+In Project Settings → Security & Privacy:
+
+1. Turn on **Prevent Storing of IP Addresses**. The browser SDK already asks Sentry not to infer an IP; this makes it a setting rather than a request.
+2. Leave **Data Scrubber** and **Use Default Scrubbers** on.
+3. Under **Advanced Data Scrubbing**, add `[Replace] [Email Addresses] from [$string]`, a server-side backstop for the code's scrubber.
+
+Then run E4 on UAT.
+
+## Evidence (2026-11-03)
+
+- **Vitest:** the test starts the SDK the way `sentry.server.config.ts` does and sends a sign-in form post through a real HTTP server, piped the way Next.js reads a Server Action. The envelope has no email address, IP address, location, cookie, body, query string or server name. Undoing each part fails it:
+  - the old settings fail on the client IP;
+  - bodies back on fail on the sign-in code;
+  - the email scrubber off fails on the address.
+- **The local app, both runtimes:** `pnpm dev` behind a stand-in for Vercel's edge, which adds `x-forwarded-for`, `x-real-ip`, `x-vercel-forwarded-for` and the location headers, and for Sentry's ingest.
+  - A browser error and a server error, each with an email address in the message, the URL, a cookie and a form body.
+  - The 7 envelopes held no email address, IP address, city, coordinates, cookie, body or query string, and the browser event carried `infer_ip: "never"`.
+  - That run found that the server's `referer` header keeps the previous page's query string, so it's no longer kept.
