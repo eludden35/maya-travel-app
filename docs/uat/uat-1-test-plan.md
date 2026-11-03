@@ -203,15 +203,18 @@ Check IDs (for example `S5-N2`) are what defect reports cite. "Refused" means th
 
 ### S6. Text posts and Report
 
-- **Who:** B, C, ADM. **Routes:** `/trips/[id]`, the admin reports page (route set by the posts chunk)
+- **Who:** B, C, ADM. **Routes:** `/trips/[id]` (the "Trip notes" section) and `/admin/reports`, which ADM reaches from the "Reports · N open" link on home
 - **Preconditions:** The trip from S5.
+- **Wording:** the app calls a post a **trip note**; "Pin to trip" posts one.
 
 | # | Step | Expected result |
 |---|---|---|
-| 1 | B writes a text post | All members see it in time order, with author name and time |
+| 1 | B writes a text post | All members see it, newest first, with author name and time; line breaks are kept |
 | 2 | C reports B's post | A calm confirmation; B isn't told who reported it |
-| 3 | ADM opens the admin reports page | The report shows the post text, trip, reporter and time; ADM can record a decision |
+| 3 | ADM opens the admin reports page | The report shows the post text, trip, author, reporter, reason and time; ADM can record a decision |
 | 4 | B posts `<b>hi</b> <script>alert(1)</script>` | Shown as plain text; nothing runs |
+| 5 | ADM takes B's reported post down, adding a note for the record | It leaves the open list for "Recently decided"; B still sees the post, marked "Taken down"; nobody else sees it |
+| 6 | B deletes that post | Asks to confirm; the post is gone for everyone |
 
 | Check | Expected result |
 |---|---|
@@ -219,7 +222,11 @@ Check IDs (for example `S5-N2`) are what defect reports cite. "Refused" means th
 | S6-N2 Photo upload | No upload control in UAT-1 |
 | S6-N3 A non-ADM opens the admin reports page | "Not found" |
 | S6-N4 The admin reports page | Shows no trip amounts or balances |
-| S6-N5 (ADM) Post past the hourly limit (30 today) | Refused with a friendly rate-limit message |
+| S6-N5 (ADM) An 11th post within an hour, or a 31st within a day | Refused with a friendly rate-limit message; the text stays in the box |
+| S6-N6 C looks for Edit, or for Report on their own post | Neither: nobody edits a post, and your own posts offer Delete instead |
+| S6-N7 C opens Report again on B's post | The button reads "Reported"; nothing is sent twice |
+| S6-N8 ADM dismisses a report | The post stays up for everyone |
+| S6-N9 On a trip with 20 or more posts, B pins one more | It appears and the box clears within a few seconds (`tripplanner-tyl`) |
 
 ### S7. Leave a trip or remove a member, with the balance rule
 
@@ -275,7 +282,7 @@ Run as OUT-anon, OUT-signed-in and OUT-follower at the end of S5, and again at t
 | PV3 | The organizer's and members' `/[handle]` | No private trips, amounts or posts |
 | PV4 | Their own home | Nothing about the trip, not even a $0.00 total |
 | PV5 | The trip URL pasted into iMessage or WhatsApp | The link preview shows no amounts, balances or post text |
-| PV6 | (ADM) REST API as OUT-signed-in for this trip's rows in `expenses`, `expense_shares`, `settlements`, `trip_posts`, `trip_invites`, `trip_members` | `[]` for each |
+| PV6 | (ADM) REST API as OUT-signed-in for this trip's rows in `expenses`, `expense_shares`, `settlements`, `trip_posts`, `reports`, `trip_invites`, `trip_members` | `[]` for each |
 
 ## 9. Feedback and triage
 
@@ -289,6 +296,8 @@ Run as OUT-anon, OUT-signed-in and OUT-follower at the end of S5, and again at t
 | P3 | Polish and suggestions | Spacing, wording ideas, feature requests | Backlog |
 
 **Weekly triage** (Mondays, ADM): read new feedback, Sentry issues and the group chat; file one Bead per defect with `bd create "<title>" -t bug -p <0–3> -l uat -d "<report>" --json` (severity maps 1:1 to Beads priority); mark repeats with `bd duplicate` and note how many testers hit it; tell each reporter the outcome. P0s never wait for Monday.
+
+**Reports** (daily, ADM): open `/admin/reports` from the "Reports · N open" link on home. Nothing alerts on a new report in UAT-1. Take down a post that breaks the Community Guidelines, or dismiss the report, with a note for the record.
 
 **Defect report template**
 
@@ -345,6 +354,11 @@ Enter Pass with the date and build SHA, or the failing Bead ID.
 Gaps in the Phase 2 spec that change what a scenario expects. Answer each in its chunk plan, then update this file.
 
 1. Who can edit or delete an expense or a post, and what does an admin decision on a report do to the post?
+   - **Posts, answered 2026-11-03 (founder, `tripplanner-2o5.6`):**
+     - **Who:** nobody edits a post. Only its author deletes it, and deleting isn't rate-limited.
+     - **Take down:** resolving a report takes the post down. Only its author still sees it, marked "Taken down", and every open report on it is resolved. Dismissing closes that one report and leaves the post up.
+     - **What a report keeps:** a copy of the text, the trip and the author, so the record survives the post being deleted. One report per person per post; nobody reports their own.
+     - S6 steps 5–6 and S6-N6 to S6-N8 check these rules.
 2. Which member gets the leftover cent? **Answered 2026-11-02 (`tripplanner-2o5.4`):** in an equal split everyone gets the amount ÷ n rounded down, and the leftover cents go one each to the payer first, if they're in the split, then to the other members in ascending member-ID order. Shares never differ by more than a cent, and the same amount, payer and members always give the same shares. `splitEqual` in `lib/money.ts` implements it; S4 steps 1–2 and S4-N2 expect it.
 3. Who can mark a debt as paid or void it (payer, payee or either), and are partial payments or overpayment allowed?
 4. Can the organizer leave, and can a trip with expenses be deleted? S7 assumes the zero-balance rule also blocks removal.
