@@ -157,8 +157,8 @@ Check IDs (for example `S5-N2`) are what defect reports cite. "Refused" means th
 
 | # | Step | Expected result |
 |---|---|---|
-| 1 | A adds $100.00 paid by A, split equally | Shares $33.34, $33.33 and $33.33 in some order; they sum to $100.00 |
-| 2 | A adds the identical expense again | The extra cent goes to the same member as in step 1 |
+| 1 | A adds $100.00 paid by A, split equally | A's share is $33.34, B's and C's $33.33: the payer takes the odd cent. They sum to $100.00 |
+| 2 | A adds the identical expense again | The same shares: A takes the odd cent again |
 | 3 | Delete the step 2 expense | Asks to confirm; it's gone; balances return to their step 1 values |
 | 4 | B adds $90.00 paid by B, exact split $30.00 / $30.00 / $20.00 | Refused: the form says $10.00 is still unassigned; nothing saved |
 | 5 | Change the split to $30.00 / $30.00 / $40.00 | Refused: $10.00 over |
@@ -169,7 +169,7 @@ Check IDs (for example `S5-N2`) are what defect reports cite. "Refused" means th
 | Check | Expected result |
 |---|---|
 | S4-N1 An amount of 0, a negative amount, `12.345` or letters | Refused, or the field won't take it; never silently rounded |
-| S4-N2 $0.02 split equally three ways | Shares $0.01, $0.01 and $0.00; sum $0.02 |
+| S4-N2 $0.02 paid by A, split equally three ways | A $0.01; one of B and C $0.01 and the other $0.00, always the same one; sum $0.02 |
 | S4-N3 $1,000,000.00 | Saved, or refused with a stated cap |
 | S4-N4 Every amount | Two decimals, tabular figures, the trip currency, no float artifacts like 33.330000001 |
 
@@ -342,7 +342,7 @@ Enter Pass with the date and build SHA, or the failing Bead ID.
 Gaps in the Phase 2 spec that change what a scenario expects. Answer each in its chunk plan, then update this file.
 
 1. Who can edit or delete an expense or a post, and what does an admin decision on a report do to the post?
-2. Which member gets the leftover cent? S4 checks only the sum and that the rule is deterministic.
+2. Which member gets the leftover cent? **Answered 2026-11-02 (`tripplanner-2o5.4`):** in an equal split everyone gets the amount ÷ n rounded down, and the leftover cents go one each to the payer first, if they're in the split, then to the other members in ascending member-ID order. Shares never differ by more than a cent, and the same amount, payer and members always give the same shares. `splitEqual` in `lib/money.ts` implements it; S4 steps 1–2 and S4-N2 expect it.
 3. Who can mark a debt as paid or void it (payer, payee or either), and are partial payments or overpayment allowed?
 4. Can the organizer leave, and can a trip with expenses be deleted? S7 assumes the zero-balance rule also blocks removal.
 5. What happens to a shared trip when one member blocks another?
