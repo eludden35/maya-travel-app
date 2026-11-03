@@ -136,7 +136,7 @@ Defaults (not asked):
 
 # tripplanner-2o5.1: trip invite links (`trip_invites`, `accept_trip_invite`, `/join/[token]`)
 
-**Bead:** `tripplanner-2o5.1` (epic `tripplanner-2o5`; blocks `2o5.9` and `2o5.13`). **Test plan:** S2 steps 3–4, S3, S7 step 6, PV2, PV6 and §12 Q6 in [`docs/uat/uat-1-test-plan.md`](../docs/uat/uat-1-test-plan.md). **Status (2026-11-03):** building. The founder accepted every recommended answer below on 2026-11-03.
+**Bead:** `tripplanner-2o5.1` (epic `tripplanner-2o5`; blocks `2o5.9` and `2o5.13`). **Test plan:** S2 steps 3–4, S3, S7 step 6, PV2, PV6 and §12 Q6 in [`docs/uat/uat-1-test-plan.md`](../docs/uat/uat-1-test-plan.md). **Status (2026-11-03):** built and verified locally; PR and CI pending. The founder accepted every recommended answer below on 2026-11-03.
 
 ## Goal
 
@@ -144,14 +144,14 @@ The organizer makes a link for their trip, shares it, and can turn it off or rep
 
 ## Founder decisions
 
-Answered by the founder on 2026-11-03: the recommended column, for all four.
+Answered by the founder on 2026-11-03: the recommended column, for all four. They're in the test plan's §12 as Q6 and Q8–Q10.
 
 | # | Question | Recommended | Other options |
 |---|---|---|---|
 | Q6 | Default expiry and maximum uses (§12 Q6) | **7 days and 10 uses.** The organizer can pick 1, 3, 7, 14 or 30 days and 1, 5, 10, 25 or 50 uses. No "never expires" and no "unlimited" while Jettison is invite-only, because each use also lets one new account past the allow-list. | Longer defaults (30 days, 25 uses); allow unlimited |
-| D1 | Is the token stored hashed, or readable by the organizer? | **Readable by the organizer only**, so they can copy or share the same link again at any time. Members, other users and signed-out visitors can't read it. A leaked link is killed by turning it off or replacing it. Shareable group links in other products work this way. | Hashed: the link is shown once, when it's made. Sharing it again later means replacing it, which breaks the copy already sent to the group. |
-| D2 | What if the person joining and the organizer have blocked each other? | **Refuse, and refuse too when they and anyone already in the trip have blocked each other.** They see the same "this invite isn't working" as for a dead link, so the block isn't revealed (ADR 0002: a block is mutual invisibility, and the blocked person never learns of it). §12 Q5 still keeps people who are already members together. | Check the organizer only; or ignore blocks, so Q5 applies once they're in |
-| D3 | Can only the organizer create links? | **Yes**, as the Bead says. Members see neither the link nor the controls (S3-N4); they ask the organizer. | Any member can make and share links |
+| Q8 | Is the token stored hashed, or readable by the organizer? | **Readable by the organizer only**, so they can copy or share the same link again at any time. Members, other users and signed-out visitors can't read it. A leaked link is killed by turning it off or replacing it. Shareable group links in other products work this way. | Hashed: the link is shown once, when it's made. Sharing it again later means replacing it, which breaks the copy already sent to the group. |
+| Q9 | What if the person joining and the organizer have blocked each other? | **Refuse, and refuse too when they and anyone already in the trip have blocked each other.** They see the same "this invite no longer works" as for a dead link, so the block isn't revealed (ADR 0002: a block is mutual invisibility, and the blocked person never learns of it). §12 Q5 still keeps people who are already members together. | Check the organizer only; or ignore blocks, so Q5 applies once they're in |
+| Q10 | Can only the organizer create links? | **Yes**, as the Bead says. Members see neither the link nor the controls (S3-N4); they ask the organizer. | Any member can make and share links |
 
 ## Defaults (not asked)
 
@@ -214,7 +214,7 @@ Answered by the founder on 2026-11-03: the recommended column, for all four.
   - Signed out: "Join trip" goes to sign-in.
   - Signed in without a profile: straight to onboarding.
   - Signed in with a profile: "Join trip" accepts, then lands on the trip.
-  - A dead link gets the "isn't working" page.
+  - A dead link gets the "no longer works" page.
 - **Onboarding** (`app/onboarding/handle/*`):
   - passes the token from the cookie and shows "You're joining …";
   - lands on the trip afterwards;
@@ -234,19 +234,19 @@ Answered by the founder on 2026-11-03: the recommended column, for all four.
 
 ## Plan
 
-- [ ] Sync with `main`; take the local-stack lock; `supabase db reset`.
-- [ ] Migration: table, RLS, the four RPCs, the onboarding change, the two rate-limit rules.
-- [ ] pgTAP `011-trip-invites.test.sql` as anon, the organizer, a member, a stranger and a not-yet-onboarded invitee. Update `008-privileges` for the new `complete_onboarding` signature.
-- [ ] Splice `database.types.ts`.
-- [ ] `lib/trip-invites.ts`, the actions, `/join`, onboarding and sign-in hooks, and the organizer panel.
-- [ ] Sentry scrubber with Vitest; Vitest for the token-shape check.
-- [ ] Playwright `e2e/invite-join.spec.ts`, with a shared Mailpit helper in `e2e/support/`:
+- [x] Sync with `main`; take the local-stack lock; `supabase db reset`.
+- [x] Migration: table, RLS, the four RPCs, the onboarding change, the two rate-limit rules.
+- [x] pgTAP `011-trip-invites.test.sql` as anon, the organizer, a member, a stranger and a not-yet-onboarded invitee. Update `008-privileges` for the new `complete_onboarding` signature.
+- [x] Splice `database.types.ts`.
+- [x] `lib/trip-invites.ts`, the actions, `/join`, onboarding and sign-in hooks, and the organizer panel.
+- [x] Sentry scrubber with Vitest; Vitest for the token-shape check.
+- [x] Playwright `e2e/invite-join.spec.ts`, with a shared Mailpit helper in `e2e/support/`:
   - the organizer makes a link;
   - a second browser context with a non-allow-listed address opens it, sees the preview, signs in, onboards and lands in the trip;
   - the organizer sees them in the list;
   - opening the link again goes to the trip;
-  - after the organizer replaces the link, the old one gets "isn't working".
-- [ ] Test plan: answer §12 Q6 and D1–D3, and align S2 step 3, S3 and S3-N1 with what shipped.
+  - after the organizer replaces the link, the old one gets "no longer works".
+- [x] Test plan: answer §12 Q6, add Q8–Q10, and align S2 steps 3–4, S3, S7 step 6 and PV2 with what shipped.
 - [ ] Proof, then PR, CI green, and a note on the Bead.
 
 ## Verification
@@ -260,7 +260,7 @@ Answered by the founder on 2026-11-03: the recommended column, for all four.
   - the last use can't be taken twice;
   - a new link turns the old one off;
   - only the organizer makes or turns off links;
-  - blocks are handled as D2 decides;
+  - blocks are handled as Q9 decides;
   - charges and limits apply;
   - an invite admits a non-allow-listed account to onboarding and joins it in the same transaction, and a dead one doesn't;
   - joining grants a `member` row and nothing else.
@@ -272,3 +272,78 @@ Answered by the founder on 2026-11-03: the recommended column, for all four.
   - copy-link otherwise;
   - 44px targets throughout;
   - fetched as a link-preview client, `/join/<token>` shows no trip details.
+
+## Review
+
+### Shipped
+
+- **Migration** `20261103200000_trip_invites.sql`:
+  - `trip_invites` with RLS in the same migration: only the trip's organizer can read it, and clients never write it;
+  - one unrevoked link per trip;
+  - `create_trip_invite`, which also rotates;
+  - `revoke_trip_invite`;
+  - `accept_trip_invite`, which locks the trip and then the link;
+  - `get_trip_invite_preview`, open to anon;
+  - `complete_onboarding` and `can_complete_onboarding` recreated with `p_invite_token`;
+  - the `trip_invite` (30 an hour) and `trip_join` (20 an hour) rate limits.
+- **Library:**
+  - `lib/trip-invites.ts`: result unions; it reuses `toResult` and `toFailure`, now exported from `lib/trips.ts`.
+  - `lib/trip-invite-fields.ts`: token shape, choices and defaults, link state, expiry wording.
+  - Invite-cookie helpers in `lib/auth-flow.ts`.
+  - `canCompleteOnboarding` and `completeOnboarding` take the token.
+- **UI:**
+  - `/join/[token]` (cookie, then a 303) and `/join` (the invitation, Join, one dead-link page);
+  - the organizer's `InvitePanel` on `/trips/[id]`;
+  - the onboarding "Then you're in …" line and invite-aware invite-only screen;
+  - the sign-in code-step copy;
+  - sign-out forgets the invite.
+- **Sentry:**
+  - `dataCollection` turns cookies and stack-frame variables off;
+  - `beforeSend` and `beforeBreadcrumb` scrub `/join/<token>`.
+
+### Evidence (2026-11-03, local stack)
+
+- **`pnpm test:db`: 12 files, 234 tests.** `011-trip-invites` adds 100; `008` follows the new signature.
+  - Three deliberate regressions each fail the new tests, and all were rolled back:
+    - no block check fails 7;
+    - ignoring expiry fails 10, including the onboarding gate;
+    - an open read policy fails 3.
+  - `supabase db lint` (public, private) finds no errors.
+- **`pnpm test`: 186 tests, 23 of them new.** The Sentry test sends a request through the SDK's own request-data step and fails without `cookies: false`.
+- **Static checks:** `pnpm typecheck`, `pnpm lint`, `pnpm check:secrets` and `pnpm build` are clean.
+- **`pnpm test:e2e`:** both specs pass against `pnpm dev`, and against the production build when `SITE_URL=http://localhost:3000` is set as in CI.
+  - `invite-join` covers S2 steps 3–4, S3 steps 1–5, S3-N1, S3-N4 and S7 step 6.
+  - It also checks Copy, using the clipboard.
+- **By hand at 375px and 360px:** the preview, the dead-link page, the organizer panel, the turn-off dialog and the create form.
+  - Nothing scrolls sideways.
+  - No visible target is under 44px.
+  - The cookie is httpOnly, and page scripts can't read it.
+- **Token exposure:**
+  - The token isn't in the `/join` HTML.
+  - The redirect is a 303 with `no-store`.
+  - It appears only on the first request line in the server log.
+
+### Independent review (subagent, 2026-11-03)
+
+- **P1, fixed:**
+  - SDK 11 ignores `sendDefaultPii` and collects cookies by default, so the invite cookie, and the token in it, would have reached Sentry on any server error.
+  - The sign-in email cookie had the same exposure on `main`, and is now covered too.
+- **P3s, fixed:**
+  - The scrubber also rewrote file paths such as `app/join/page.js`.
+  - The onboarding gate wasn't tested with an expired or full link that was still on.
+- **P3, documented in §12 Q9:** the preview works signed out, so a blocked person who compares the signed-out and signed-in views can infer a block.
+- **P3, filed as `tripplanner-x6a`:** invited accounts can make links of their own, so invites can chain past the allow-list.
+
+### Notes
+
+- **Rotation** is `create_trip_invite` replacing the live link; there's no separate rotate RPC. The UI calls it "New link", with the same settings.
+- **The AC's "no money rows visible before joining"** can't be asserted yet, because no money table is on `main`. pgTAP asserts that joining adds exactly one `member` row and changes nothing else. The money-privacy matrix in `2o5.2` and `2o5.3` covers non-members.
+- **Residual exposure:** the first request line, `GET /join/<token>`, is in the host's access log, as with any link-based invite.
+- **Sign-in copy:** the code step shows "carry on with your invite" whenever the cookie exists, even for a dead link. The link page has already said it no longer works.
+- **For `2o5.9`:** a pending invite can be the `jtsn_invite` cookie on this device, before it's accepted. `readInviteToken` plus `getTripInvitePreview` give the trip.
+
+### Follow-ups
+
+- `tripplanner-7pl` (P1, now blocks `2o5.13`, entry criterion E4): Sentry still collects client IPs and request bodies (emails, sign-in codes) by default.
+- `tripplanner-x6a` (P2, founder decision): whether links made by invite-admitted accounts can admit new accounts.
+
