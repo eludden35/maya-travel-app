@@ -2,9 +2,9 @@
  * Money arithmetic for trips (Bead tripplanner-2o5.4): equal and exact
  * splits, suggested payments, and reading and showing amounts.
  *
- * Amounts are whole numbers of the currency's minor unit (cents for USD, yen
- * for JPY), one currency per trip, as the database stores them. Nothing here
- * does floating-point arithmetic: splits use integer division and
+ * Amounts are whole numbers of the currency's minor unit (cents for USD),
+ * one currency per trip, as the database stores them. Nothing here does
+ * floating-point arithmetic: splits use integer division and
  * remainders, and parsing and formatting work on digit strings. The module
  * is pure (no I/O, no Supabase), so a form, the Server Action behind it and
  * the expense RPCs' checks agree on every cent.
@@ -16,18 +16,25 @@
  */
 
 /**
- * The currencies a trip can use: the number of minor-unit digits (ISO 4217)
- * and the symbol `formatMoney` shows. The trip currency picker and the
- * expenses migration's CHECK constraint should list the same codes.
+ * The currencies a trip can use, in the order the trip form lists them: the
+ * name the form shows, the number of minor-unit digits (ISO 4217) and the
+ * symbol `formatMoney` shows. This is the app's one currency list; the trip
+ * form reads it through `TRIP_CURRENCIES` in `lib/trip-fields.ts`. It must
+ * hold the same codes as `private.is_supported_currency()`, which checks
+ * `trips.currency`, and `lib/money.test.ts` compares the two. All are
+ * two-decimal, as the money UI shows two decimals (test plan S4-N4).
  */
 export const CURRENCIES = {
-  USD: { exponent: 2, symbol: "$" },
-  EUR: { exponent: 2, symbol: "€" },
-  GBP: { exponent: 2, symbol: "£" },
-  CAD: { exponent: 2, symbol: "CA$" },
-  MXN: { exponent: 2, symbol: "MX$" },
-  JPY: { exponent: 0, symbol: "¥" },
-} as const satisfies Record<string, { exponent: number; symbol: string }>;
+  USD: { name: "US dollar", exponent: 2, symbol: "$" },
+  CAD: { name: "Canadian dollar", exponent: 2, symbol: "CA$" },
+  MXN: { name: "Mexican peso", exponent: 2, symbol: "MX$" },
+  EUR: { name: "Euro", exponent: 2, symbol: "€" },
+  GBP: { name: "British pound", exponent: 2, symbol: "£" },
+  AUD: { name: "Australian dollar", exponent: 2, symbol: "A$" },
+} as const satisfies Record<
+  string,
+  { name: string; exponent: number; symbol: string }
+>;
 
 export type CurrencyCode = keyof typeof CURRENCIES;
 
@@ -258,7 +265,7 @@ export function parseMoney(
 }
 
 /**
- * Shows an amount: "$1,234.56", "−$14.00", "¥1,235". Always the currency's
+ * Shows an amount: "$1,234.56", "−$14.00", "A$0.50". Always the currency's
  * full number of decimals, so a column of amounts lines up in tabular
  * figures. Built from digit strings in one fixed (en-US) style rather than
  * with `Intl.NumberFormat`, so the server and the browser render the same

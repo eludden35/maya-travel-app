@@ -8,6 +8,8 @@
  * with a status. The limits here mirror that so a form can say so up front.
  */
 
+import { CURRENCIES, type CurrencyCode } from "@/lib/money";
+
 export const TRIP_NAME_MAX = 120;
 export const TRIP_DESCRIPTION_MAX = 2000;
 
@@ -16,21 +18,15 @@ export const TRIP_DATE_MIN = "1900-01-01";
 export const TRIP_DATE_MAX = "2999-12-31";
 
 /**
- * Currencies a trip can be kept in. Must match
- * `private.is_supported_currency()` in the trip_lifecycle migration. All are
- * two-decimal: amounts are integer minor units and the money UI shows two
- * decimals.
+ * Currencies a trip can be kept in, in picker order. `CURRENCIES` in
+ * `lib/money.ts` is the one list, checked against
+ * `private.is_supported_currency()` by `lib/money.test.ts`.
  */
-export const TRIP_CURRENCIES = [
-  { code: "USD", name: "US dollar" },
-  { code: "CAD", name: "Canadian dollar" },
-  { code: "MXN", name: "Mexican peso" },
-  { code: "EUR", name: "Euro" },
-  { code: "GBP", name: "British pound" },
-  { code: "AUD", name: "Australian dollar" },
-] as const;
+export const TRIP_CURRENCIES = (Object.keys(CURRENCIES) as CurrencyCode[]).map(
+  (code) => ({ code, name: CURRENCIES[code].name }),
+);
 
-export const DEFAULT_TRIP_CURRENCY = "USD";
+export const DEFAULT_TRIP_CURRENCY = "USD" satisfies CurrencyCode;
 
 /** The details a trip's organizer can edit after creating it. */
 export type TripDetails = {
