@@ -5,7 +5,7 @@
 -- with anyone in the trip stops a join and looks like a dead link (Q9); only
 -- the organizer makes or turns off links (Q10); one live link per trip.
 begin;
-select plan(93);
+select plan(100);
 
 select tests.create_user('alice');                                                -- organizer
 select tests.create_user('bob');                                                  -- member
@@ -39,17 +39,17 @@ as $$
 $$;
 grant execute on function tests.token(text) to anon, authenticated;
 
--- Saves Porto's live link: its token under p_name, its id in tests.ids.
-create function tests.save_live_link(p_name text)
+-- Saves a trip's live link: its token under p_name, its id in tests.ids.
+create function tests.save_live_link(p_name text, p_trip text default 'Porto')
 returns void
 language sql
 as $$
   insert into tests.tokens (name, token)
   select p_name, i.token from public.trip_invites i
-  where i.trip_id = tests.id('Porto') and i.revoked_at is null;
+  where i.trip_id = tests.id(p_trip) and i.revoked_at is null;
   insert into tests.ids (name, id)
   select p_name, i.id from public.trip_invites i
-  where i.trip_id = tests.id('Porto') and i.revoked_at is null;
+  where i.trip_id = tests.id(p_trip) and i.revoked_at is null;
 $$;
 
 -- ----------------------------------------------------------------------------
@@ -400,7 +400,7 @@ select results_eq(
             (select count(*)::int from public.trip_members
              where trip_id = tests.id('Porto') and profile_id = tests.id('ivan')) $$,
   $$ values (1, 0) $$,
-  'the count never passes the limit'
+  'the next person adds nothing and the count stays at the limit (concurrent joins wait on the link''s row lock)'
 );
 
 -- ----------------------------------------------------------------------------
@@ -447,16 +447,54 @@ select isnt_empty($$ select * from public.get_trip_invite_preview(tests.token('l
 -- Onboarding: a live link admits an email that isn't allow-listed
 -- ----------------------------------------------------------------------------
 
+-- Two more trips, each with a link that is still on: one expired, one full.
+reset role;
+select tests.clear_auth();
+select tests.create_trip('alice', 'Braga');
+select tests.create_trip('alice', 'Sintra');
+
+select tests.authenticate_as('alice');
+select is((select status from public.create_trip_invite(tests.id('Braga'), 7, 10)),
+  'ok', 'a link to let expire while it is still on');
+select is((select status from public.create_trip_invite(tests.id('Sintra'), 7, 1)),
+  'ok', 'a one-person link to fill while it is still on');
+
+reset role;
+select tests.clear_auth();
+select tests.save_live_link('Braga link', 'Braga');
+select tests.save_live_link('Sintra link', 'Sintra');
+update public.trip_invites
+set created_at = now() - interval '8 days', expires_at = now() - interval '1 day'
+where id = tests.id('Braga link');
+
+select tests.authenticate_as('hank');
+select is((select status from public.accept_trip_invite(tests.token('Sintra link'))),
+  'ok', 'someone takes the one-person link');
+
 reset role;
 select tests.authenticate_as('erin');
 select is(public.can_complete_onboarding(), false,
   'without a link, an email that isn''t allow-listed still can''t onboard');
 select is(public.can_complete_onboarding(tests.token('link 5')), true,
   'a live link lets them');
-select is(public.can_complete_onboarding(tests.token('link 3')), false,
+select is(public.can_complete_onboarding(tests.token('Braga link')), false,
   'an expired one doesn''t');
+select is(public.can_complete_onboarding(tests.token('Sintra link')), false,
+  'nor does a full one');
+select is(public.can_complete_onboarding(tests.token('link 2')), false,
+  'nor one that was turned off');
 select is(public.can_complete_onboarding('AAAAAAAAAAAAAAAAAAAAAA'), false,
-  'nor does an unknown one');
+  'nor an unknown one');
+select is(
+  public.complete_onboarding('t_erin', 'Erin', 'v1.0-2026-04-19', null, null, tests.token('Braga link')),
+  'invite_required',
+  'complete_onboarding refuses an expired link'
+);
+select is(
+  public.complete_onboarding('t_erin', 'Erin', 'v1.0-2026-04-19', null, null, tests.token('Sintra link')),
+  'invite_required',
+  'and a full one'
+);
 select is(
   public.complete_onboarding('t_erin', 'Erin', 'v1.0-2026-04-19', null, null),
   'invite_required',
