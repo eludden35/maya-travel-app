@@ -239,6 +239,8 @@ Check IDs (for example `S5-N2`) are what defect reports cite. "Refused" means th
 |---|---|
 | S7-N1 B or C looks for remove-member controls | None for anyone but the organizer |
 | S7-N2 The taxi C paid before leaving | Still in the history; balances still sum to $0.00 |
+| S7-N3 A looks for "Leave trip" | None; the page says the organizer stays until the trip is deleted |
+| S7-N4 A deletes the trip while B still owes $14.00 | Refused: says what to settle first; nothing is deleted |
 
 ### S8. Settings, block and unblock, second device
 
@@ -260,6 +262,7 @@ Check IDs (for example `S5-N2`) are what defect reports cite. "Refused" means th
 | S8-N1 Change the handle | Not possible; shown read-only |
 | S8-N2 S tries to follow B while blocked | Refused with a calm message |
 | S8-N3 Anyone's `/[handle]` | Never shows private trips to non-members, and never shows amounts |
+| S8-N4 B blocks a co-member from a shared trip | Both stay in the trip and still see each other's name, costs and posts there; outside the trip the block applies |
 
 ## 8. Privacy sweep
 
@@ -345,5 +348,9 @@ Gaps in the Phase 2 spec that change what a scenario expects. Answer each in its
 2. Which member gets the leftover cent? **Answered 2026-11-02 (`tripplanner-2o5.4`):** in an equal split everyone gets the amount ÷ n rounded down, and the leftover cents go one each to the payer first, if they're in the split, then to the other members in ascending member-ID order. Shares never differ by more than a cent, and the same amount, payer and members always give the same shares. `splitEqual` in `lib/money.ts` implements it; S4 steps 1–2 and S4-N2 expect it.
 3. Who can mark a debt as paid or void it (payer, payee or either), and are partial payments or overpayment allowed?
 4. Can the organizer leave, and can a trip with expenses be deleted? S7 assumes the zero-balance rule also blocks removal.
+   - **Answered 2026-11-02 (founder, `tripplanner-718`):** The organizer can't leave in UAT-1; they stay until the trip is deleted. Handing the organizer role to someone else is a post-UAT Bead. The organizer can delete a trip only when every balance is zero, the same rule that blocks leaving and removal (`tripplanner-2o5.3` adds the balance check to all three). Deleting removes the trip, its posts and its cost history for every member.
 5. What happens to a shared trip when one member blocks another?
+   - **Answered 2026-11-02 (founder, `tripplanner-718`):** Both stay members. Inside the trip each still sees the other's name, costs and posts, so the shared ledger reads correctly. Outside the trip the block works as usual: no profile view, no follow, no DMs. Either one can leave once settled, or the organizer can remove one of them.
 6. What are the default invite expiry and maximum uses?
+7. Who can edit a trip?
+   - **Answered 2026-11-02 (founder, `tripplanner-718`):** The organizer only: name, dates and description. The currency is fixed when the trip is created. Only the organizer can delete the trip or remove members; any member can leave.

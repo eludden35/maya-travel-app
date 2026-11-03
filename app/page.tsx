@@ -9,11 +9,8 @@ import {
   requireProfile,
 } from "@/lib/profiles";
 import { createClient } from "@/lib/supabase/server";
-import {
-  listTripsForViewer,
-  type TripVisibility,
-  type TripWithMemberCount,
-} from "@/lib/trips";
+import { formatTripDates } from "@/lib/trip-dates";
+import { listTripsForViewer, type TripVisibility } from "@/lib/trips";
 
 /**
  * Home / signed-in landing.
@@ -23,7 +20,9 @@ import {
  * Signed-in: greeting, follower / following counts, and a "People to follow"
  * section listing up to 10 other discoverable profiles with a FollowButton
  * each (Bead tripplanner-s3a.2). This is the smallest end-to-end slice that
- * exercises the follow graph from the UI layer.
+ * exercises the follow graph from the UI layer. "Your trips" links each trip
+ * to its page and offers "Plan a trip" (tripplanner-718); the trips-first
+ * home with balances is tripplanner-2o5.9.
  *
  * The big "$0" numeral stays as a scaffold smoke-test for the Fraunces type
  * pairing and the Tailwind tokens; it is not a product surface yet.
@@ -90,33 +89,41 @@ export default async function Home() {
 
           {trips.length === 0 ? (
             <p className="text-sm text-secondary text-center py-6">
-              No trips yet — trip creation is on the way. When it lands, your
-              trips will appear here.
+              No trips yet. Plan one and it will show up here.
             </p>
           ) : (
             <ul className="flex flex-col gap-3">
               {trips.map((t) => (
-                <li
-                  key={t.id}
-                  className="flex items-start gap-3 min-h-[44px] rounded-md border border-hairline bg-card p-3"
-                >
-                  <div className="flex flex-col min-w-0 flex-1 gap-1">
-                    <span className="font-display text-base leading-tight truncate">
-                      {t.name}
-                    </span>
-                    <span className="text-sm text-secondary">
-                      {formatTripDates(t.start_date, t.end_date)}
-                    </span>
-                    <span className="font-mono text-xs text-secondary tabular-nums">
-                      {t.memberCount}{" "}
-                      {t.memberCount === 1 ? "member" : "members"}
-                    </span>
-                  </div>
-                  <VisibilityChip visibility={t.visibility} />
+                <li key={t.id}>
+                  <Link
+                    href={`/trips/${t.id}`}
+                    className="flex items-start gap-3 min-h-[44px] rounded-md border border-hairline bg-card p-3 hover:border-secondary"
+                  >
+                    <div className="flex flex-col min-w-0 flex-1 gap-1">
+                      <span className="font-display text-base leading-tight truncate">
+                        {t.name}
+                      </span>
+                      <span className="text-sm text-secondary">
+                        {formatTripDates(t.start_date, t.end_date)}
+                      </span>
+                      <span className="font-mono text-xs text-secondary tabular-nums">
+                        {t.memberCount}{" "}
+                        {t.memberCount === 1 ? "member" : "members"}
+                      </span>
+                    </div>
+                    <VisibilityChip visibility={t.visibility} />
+                  </Link>
                 </li>
               ))}
             </ul>
           )}
+
+          <Link
+            href="/trips/new"
+            className="w-full h-12 rounded-md bg-ember text-ink font-medium flex items-center justify-center hover:opacity-90"
+          >
+            Plan a trip
+          </Link>
         </section>
 
         <section
@@ -231,28 +238,6 @@ function VisibilityChip({ visibility }: { visibility: TripVisibility }) {
       {chip.label}
     </span>
   );
-}
-
-const TRIP_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-
-function formatTripDates(
-  startDate: TripWithMemberCount["start_date"],
-  endDate: TripWithMemberCount["end_date"],
-): string {
-  if (!startDate && !endDate) {
-    return "Dates TBD";
-  }
-  if (startDate && endDate) {
-    return `${TRIP_DATE_FORMATTER.format(new Date(startDate))} \u2013 ${TRIP_DATE_FORMATTER.format(new Date(endDate))}`;
-  }
-  if (startDate) {
-    return `From ${TRIP_DATE_FORMATTER.format(new Date(startDate))}`;
-  }
-  return `Until ${TRIP_DATE_FORMATTER.format(new Date(endDate as string))}`;
 }
 
 function AnonymousWelcome() {

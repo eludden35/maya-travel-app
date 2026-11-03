@@ -1,112 +1,133 @@
-# UAT readiness: stabilize, secure, and stand up UAT-1
+# tripplanner-718: create, edit, delete and leave a trip, plus `/trips/[id]`
 
-**Session:** 2026-10-29. **Epic:** [`tripplanner-2o5`](#) — _UAT-1: core trip loop (invite-only friends & family, manual settle)_. **Test plan:** [`docs/uat/uat-1-test-plan.md`](../docs/uat/uat-1-test-plan.md).
+**Bead:** [`tripplanner-718`](#) (epic [`tripplanner-2o5`](#), UAT-1 critical path; blocks `2o5.1`, `2o5.2`, `2o5.3`, `2o5.6`, `2o5.9`). **Test plan:** [`docs/uat/uat-1-test-plan.md`](../docs/uat/uat-1-test-plan.md) (S2, S7, §12). **Previous record:** UAT readiness (Phase 0 and 1) shipped in [PR #1](https://github.com/eludden35/maya-travel-app/pull/1); see `git show fd36316:tasks/todo.md`.
 
-A full review of the app (no code had changed since 2026-04-20) found that it wasn't ready for UAT. This session did Phase 0 (stabilize and secure) and Phase 1 (UAT environment and quality gates). Phase 2 (build the UAT-1 scope) and Phase 3 (run UAT) are filed as Beads under the epic.
+## Goal
 
-## Decisions (founder, 2026-10-29)
+An onboarded tester can plan a private trip (name, dates, currency, description), open it at `/trips/[id]`, edit it, delete it, leave it, and (as organizer) remove a member. Non-members get "not found"; signed-out visitors get sign-in. No money tables are touched.
 
-- **UAT-1 scope: the core trip loop.** Create a trip, invite by link, shared costs, balances, mark as paid, text posts. Photos, DMs, explore, notifications and real payments wait for later rounds.
-- **Testers:** 5–25 invited friends and family. Invite-only: onboarding completes only for an email in `private.onboarding_allowlist`.
-- **Money:** tracked and settled manually; no payment provider. Integer minor units, one currency per trip, member-only RLS, RPC-only writes.
-- **Environments:** the hosted Supabase project `jettison` (`siaygwtwgvgjoircgpoa`, test data only) is **UAT**. Development runs on local Supabase in Docker. Production gets a new project at launch.
-- **Defaults:** hidden profiles are visible only to the person, trip co-members and people they follow; posts and money are members-only; no guest participants in UAT-1.
+## Product decisions
 
-## Review findings
+Decided by the founder on 2026-11-02 and recorded in §12 of the test plan (S7-N3, S7-N4 and S8-N4 added):
 
-| # | Sev | Finding | Fixed by |
-|---|---|---|---|
-| 1 | P0 | `trip_members` read policy queried itself → 42P17 on every signed-in read of `profiles`, `trips`, `trip_members`; helpers hid it, users looped through onboarding | `private.is_trip_member` |
-| 2 | P0 | Any account could insert its own profile with `is_moderator = true` (guard trigger was UPDATE-only, grants wide open) | INSERT revoked; trigger on insert or update; `complete_onboarding` |
-| 3 | P1 | Unlisted trips listable with `?visibility=eq.unlisted` | Unlisted branch dropped; `get_trip(id)` |
-| 4 | P1 | Blocks one-way: the blocked user could re-follow and still see the blocker | `has_blocked_me`, `blocked_either_way` in policies |
-| 5 | P1 | Rate-limit RPC trusted caller-supplied identity and limits; callable by anon | `consume_rate_limit(surface)`, limits in `private.rate_limit_rules` |
-| 6 | P1 | Clients could upload to `images-pending` and insert `pending_review` rows directly; no bucket limits; anon could list approved | Storage policies dropped; admin-client inserts; size/type limits; path check |
-| 7 | P1 | Private trips uncreatable (INSERT … RETURNING had no organizer branch); organizers could add anyone | Organizer branch; AFTER INSERT membership trigger; forced-add policy dropped |
-| 8 | P1 | Profile + ToS acceptance were two calls; direct API insert skipped the gate | `complete_onboarding` (one transaction) |
-| 9 | P2 | Open redirect via `next=//…`, raw auth error text, Origin-derived `emailRedirectTo` | `safeNextPath`, error codes, `SITE_URL` |
-| 10 | P2 | Smaller gaps (`search_path`, `created_at` spoofing, `is_moderator()` answered for anyone, …) | Same migration |
-| 11 | P2 | Contrast below AA (`muted` ≈ 2.6:1, ember ≈ 4.4:1) | Open: `tripplanner-2o5.11` |
+| # | Question | Decision |
+|---|---|---|
+| Q4a | Can the organizer leave? | No, not in UAT-1: the organizer stays until the trip is deleted. Handing the role to someone else becomes a post-UAT Bead. |
+| Q4b | Can a trip with expenses be deleted? | Only when every balance is zero, the same rule as leaving. Until expenses ship, any trip can be deleted. |
+| Q5 | What happens to a shared trip when one member blocks another? | Both stay members. Inside the trip each still sees the other's name, costs and posts, so the ledger reads correctly; the block still stops profile views, follows and DMs. |
+| Q7 | Who can edit a trip? | The organizer only (name, dates, description), as the Bead says. |
+
+Defaults (not asked):
+
+- **Private only.** `create_trip` always creates a private trip; there is no visibility control. The `trip_visibility` enum stays.
+- **Currency** is picked at creation from USD, CAD, MXN, EUR, GBP and AUD (all two-decimal, matching S4-N4), USD by default, and can't be changed afterwards. `2o5.2` may relax that to "until the first expense".
+- **Rate limits:** two new surfaces, `trip_create` (10 per hour) and `trip_write` (60 per hour, shared by edit, delete, leave and remove).
+
+## Design
+
+- **Writes go through RPCs only.** Each RPC is `security definer`, `search_path = ''`, takes identity from `auth.uid()`, validates, and only then charges `consume_rate_limit` in the same transaction (the `complete_onboarding` pattern). Clients lose INSERT, UPDATE and DELETE on `trips` and DELETE on `trip_members`, and the old write policies are dropped. A direct API call can't skip the limit or flip `visibility`.
+  - This deviates from the AC wording ("Server Actions wrap them with withRateLimit"): charging inside the RPC is stricter, and wrapping as well would charge twice.
+
+| RPC | Caller | Statuses |
+|---|---|---|
+| `create_trip(name, currency, description, start_date, end_date)` → `(status, trip_id)` | any onboarded user | `ok`, `invalid_name`, `invalid_description`, `invalid_dates`, `invalid_currency`, `rate_limited`, `unauthorized` |
+| `update_trip(trip_id, name, description, start_date, end_date)` | organizer | `ok`, `not_found`, `forbidden`, `invalid_*`, `rate_limited`, `unauthorized` |
+| `delete_trip(trip_id)` | organizer | `ok`, `not_found`, `forbidden`, a departure blocker (none until `2o5.3`), `rate_limited`, `unauthorized` |
+| `leave_trip(trip_id)` | member | `ok`, `not_found`, `organizer_cannot_leave`, `rate_limited`, `unauthorized` |
+| `remove_trip_member(trip_id, profile_id)` | organizer | `ok`, `not_found`, `forbidden`, `not_a_member`, `cannot_remove_organizer`, `rate_limited`, `unauthorized` |
+
+- **One place for the balance rule.** `leave_trip` and `remove_trip_member` lock the membership row and ask `private.trip_departure_blocker(trip_id, profile_id)`, which returns `null` today. `delete_trip` asks the same function for every member (Q4b). `2o5.3` redefines only that function to return `unsettled_balance`.
+- **Member list.** `get_trip_members(trip_id)` (members only) returns each co-member's handle and display name even across a block (Q5). Profile RLS is unchanged, so outside the trip the block still hides the blocker.
+- **Not found means not found.** An unknown id, a malformed id and a trip you can't see all render the same `notFound()`. Signed-out visitors go to `/auth/sign-in?next=/trips/[id]` before anything loads.
 
 ## Plan
 
-### Phase 0 — stabilize and secure
+- [x] Migration `supabase/migrations/20261102180000_trip_lifecycle.sql`: `trips.currency`, revoked writes and dropped write policies, the RPCs above, the departure hook, the two rate-limit rules.
+- [x] pgTAP `supabase/tests/database/010-trip-lifecycle.test.sql`; update `007-trip-membership.test.sql` for the RPC-only model.
+- [x] Regenerate `database.types.ts` from the local stack.
+- [x] `lib/trips.ts`: `createTrip`, `updateTrip`, `deleteTrip`, `leaveTrip`, `removeTripMember` returning result unions. `lib/trip-fields.ts`: `TRIP_CURRENCIES` and form parsing. `lib/trip-dates.ts`: date-range formatting in UTC (the home showed Dec 3 for a Dec 4 trip west of UTC). Vitest for both. `lib/rate-limit.ts`: register the two surfaces.
+- [x] `app/_actions/trips-actions.ts`: `isUuid` guards, redirects, `revalidatePath`.
+- [x] UI:
+  - `/trips/new`: name, dates, currency, description; "Create trip" in an anchored bottom bar.
+  - `/trips/[id]`: header (name, dates, currency, description) and members (organizer first). The organizer gets Edit, Remove and Delete; a member gets Leave. Destructive actions confirm in a native `<dialog>`.
+  - `/trips/[id]/edit`: organizer only; currency read-only.
+  - Home: "Plan a trip" link; trip rows link to `/trips/[id]`. The trips-first rework stays with `2o5.9`.
+- [x] Playwright: extend `e2e/smoke.spec.ts` to create a trip, open it, edit it and delete it, then check the old URL is "not found".
+- [x] §12 answers in the test plan, with S7-N3, S7-N4 and S8-N4.
+- [x] Beads: notes on `718`, `2o5.1`, `2o5.2`, `2o5.3`, `2o5.6`, `2o5.9`.
+- [x] Post-UAT follow-up Bead for organizer hand-off: `tripplanner-tbm`.
+- [ ] PR against `main`, CI green, Bead updated: [PR #3](https://github.com/eludden35/maya-travel-app/pull/3) is open; close `718` when it merges.
 
-- [x] Toolchain: Node 24 (`.nvmrc`), pnpm 11.25 (`packageManager`), `engines`; `pnpm install`; typecheck and lint re-baselined.
-- [x] pgTAP suite in [`supabase/tests/database/`](../supabase/tests/database/) (`000-setup.sql` + nine files covering findings 1–8) and a local-only [`supabase/seed.sql`](../supabase/seed.sql).
-- [x] Corrective migrations: [`20261029120000_rls_hardening.sql`](../supabase/migrations/20261029120000_rls_hardening.sql) (findings 1–8 and 10) and [`20261029120100_onboarding_allowlist.sql`](../supabase/migrations/20261029120100_onboarding_allowlist.sql) (invite-only).
-- [x] TypeScript to match: RPC-based onboarding, ToS, rate limits and `get_trip`; read helpers throw `DataAccessError` instead of returning null or `[]`; image rows inserted by the admin client; follow returns `unavailable` when blocked; `isUuid` guards on actions.
-- [x] Auth: 6-digit code plus a `token_hash` link through [`/auth/confirm`](../app/auth/confirm/route.ts), which works across devices; `SITE_URL`-based redirects; `safeNextPath`; error codes instead of raw text; error, global-error and not-found pages.
-- [x] Pushed both migrations to UAT with `supabase db push --linked`. This one push was from a laptop, with the founder's go-ahead, because CI can't migrate UAT until its secrets exist.
-- [x] Regenerated [`database.types.ts`](../database.types.ts) from UAT.
-- [ ] **Run the pgTAP suite.** Blocked locally: the Docker engine is down, and `supabase test db` needs Docker even with `--linked`, because it runs pg_prove in a container. Run it in CI or with psql.
-- [ ] **Incident check on UAT** (SQL editor): `select id, handle, created_at from public.profiles where is_moderator;` should list only accounts you made moderators. Finding 2 was open from 2026-04-19.
+## Verification
 
-### Phase 1 — UAT environment and quality gates
-
-- [x] CI in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) has four jobs:
-  - `app`: typecheck, lint, Vitest, secret boundary.
-  - `database`: pgTAP on a fresh local stack.
-  - `e2e`: Playwright and Mailpit.
-  - `migrate-uat`: runs on `main` only, and only once its secrets exist.
-- [x] Sentry (`@sentry/nextjs`): off unless `NEXT_PUBLIC_SENTRY_DSN` is set; no PII.
-- [x] Security headers and CSP; `noindex` and `robots.txt` unless `ALLOW_INDEXING=true`.
-- [x] PWA manifest and JTSN icons; scaffold SVGs and favicon removed.
-- [x] Vitest unit tests (32): `safeNextPath`, `maskIp` / `truncateUserAgent`, `isUuid`.
-- [x] [`scripts/check-client-secrets.mjs`](../scripts/check-client-secrets.mjs) replaces the broken `rg` gate.
-- [ ] Founder steps: Supabase Pro for the UAT window; Vercel project and env vars; custom SMTP with SPF, DKIM and DMARC; Site URL and redirect allow-list; the code-and-link email template; GitHub secrets; allow-list entries.
-
-### Phases 2 and 3
-
-- [x] Filed as Beads by a side session:
-  - 13 children under `tripplanner-2o5`.
-  - Post-UAT items: `1s0`, `311`, `ewo`, `iha`, `qer`, `sa4`, `ymv`.
-  - Doc cleanup `2er` (stale s3a.26 and s3a.27 citations).
-- [x] UAT-1 test plan written by a side session: 8 scenarios, a privacy sweep, entry and exit criteria, and 6 open questions for the Phase 2 chunk plans.
+- `pnpm test:db`. In `010`, as anon, as two signed-in users and as a stranger, check that:
+  - anon has no EXECUTE on any of the RPCs;
+  - direct INSERT, UPDATE and DELETE on `trips`, and DELETE on `trip_members`, fail with 42501;
+  - `create_trip` makes a private trip in the chosen currency with the organizer's membership, and charges `trip_create`;
+  - each invalid input returns its status and writes nothing;
+  - a stranger gets `not_found` everywhere and changes nothing;
+  - a member gets `forbidden` on edit, delete and remove;
+  - a member can leave, and loses access when they do;
+  - the organizer can't leave;
+  - the organizer can remove a member;
+  - deleting a trip removes its members;
+  - going over the limit returns `rate_limited`;
+  - the Q5 rule holds.
+- `pnpm test` (date formatting), `pnpm typecheck`, `pnpm lint`, `pnpm check:secrets`.
+- `pnpm test:e2e` (mobile Chromium).
+- By hand in the browser, with the seed users:
+  - Bob leaves "Lisbon long weekend", and Alice removes a member.
+  - Signed out, the trip page redirects to sign-in.
+  - A stranger gets "not found".
+  - At 360px nothing scrolls sideways.
+  - Every tap target is at least 44px.
+- CI green on the PR.
 
 ## Review
 
-### Evidence
+### Shipped
 
-- `supabase migration list --linked`: the remote matched local through `20260419190200`. `supabase db push --linked` then applied `20261029120000` and `20261029120100` cleanly.
-- `supabase db lint --linked --schema public,private --level warning`: "No schema errors found".
-- Anonymous probes against the UAT REST API, using the publishable key only:
+- **Migration** `20261102180000_trip_lifecycle.sql`:
+  - adds `trips.currency`;
+  - revokes client writes on `trips` and `trip_members` and drops their write policies;
+  - adds the RPCs `create_trip`, `update_trip`, `delete_trip`, `leave_trip`, `remove_trip_member` and `get_trip_members`;
+  - adds `private.trip_departure_blocker`, the one place for the balance rule;
+  - adds the rate-limit surfaces `trip_create` (10 an hour) and `trip_write` (60 an hour).
+- **Library:** write helpers with result unions in `lib/trips.ts`; `lib/trip-fields.ts` and `lib/trip-dates.ts`; `requireProfileFor` in `lib/profiles.ts`; and `app/_actions/trips-actions.ts`.
+- **UI:**
+  - `/trips/new`, `/trips/[id]` (with a loading state) and `/trips/[id]/edit`.
+  - A trip form and a confirm dialog.
+  - Home links each trip and offers "Plan a trip".
 
-| Probe | Result |
-|---|---|
-| `GET /rest/v1/trips?visibility=eq.unlisted` | 200 `[]` |
-| `GET /rest/v1/profiles?select=id&limit=1` | 200, one row (no 42P17) |
-| `GET /rest/v1/trip_members` | 200 `[]` |
-| `POST /rest/v1/rpc/get_trip` (unknown id) | 200 `[]` |
-| `POST /rest/v1/rpc/is_moderator` (someone else) | 200 `false` |
-| `POST /rest/v1/rpc/{consume_rate_limit,complete_onboarding,can_complete_onboarding,accept_tos}` | 401, 42501 permission denied |
-| `POST /rest/v1/rpc/try_consume_rate_limit` | 404 PGRST202 (dropped) |
-| `POST /rest/v1/{profiles,images,tos_acceptances}` | 401, 42501 permission denied |
-| Storage list `images-approved`, `images-pending` | 200 `[]` |
+### Evidence (2026-11-02, local stack)
 
-- `pnpm typecheck` exit 0; `pnpm lint` exit 0; `pnpm test` 32/32 passed; `pnpm check:secrets` OK.
-- `pnpm build`: exit 0 (16 routes).
-- `pnpm start` with `curl` showed:
-  - Headers: CSP, HSTS, `X-Frame-Options: DENY`, `nosniff`, Referrer-Policy, Permissions-Policy and `X-Robots-Tag: noindex, nofollow` are present; `X-Powered-By` is absent.
-  - `/auth/callback?next=//evil.example` → `/auth/sign-in?error=missing_code`.
-  - A bogus `/auth/confirm` link → `?error=link_invalid`.
-  - Signed-out `/onboarding/handle` → `/auth/sign-in`.
-  - `robots.txt` is `Disallow: /`; the manifest and icons are served.
-- **Not yet run:**
-  - pgTAP (`supabase test db`).
-  - Playwright smoke (`pnpm test:e2e`).
-  - Signed-in smoke on UAT.
-  - The incident check.
+- `pnpm test:db`: 11 files, 134 tests. 55 are new in `010-trip-lifecycle`, and `007` is updated for RPC-only writes.
+- `pnpm test`: 56 tests, 24 of them new. Removing `timeZone: "UTC"` fails 5 of them, so they guard the date fix.
+- `pnpm typecheck`, `pnpm lint` and `pnpm check:secrets` are clean. `supabase db lint` (public, private) finds no errors. `pnpm build` succeeds.
+- `pnpm test:e2e` passes against both `pnpm dev` and the production build. It covers create, open, edit, the home link, the signed-out redirect (S2-N2), delete, and "not found" afterwards.
+- By hand at 375px and 360px with the seed users:
+  - Checked the organizer and member views.
+  - An edit the server refuses keeps the other fields.
+  - Bob leaves; Alice removes Bob; delete works.
+  - A member's `/edit` and a malformed id both show "Nothing here."
+  - A 120-character name causes no sideways scroll.
+  - Every tap target on the trip pages is at least 44px.
+- Signed out, fetched as a link-preview client from the production build: every trip URL returns only the "Trip · Jettison" title and a skeleton, then redirects to sign-in. No trip or member text is in the HTML.
 
 ### Lenses
 
-- **Architecture.** Identity-dependent checks live in `private` SECURITY DEFINER helpers with `search_path = ''`, and take identity only from `auth.uid()`. The `private` schema isn't exposed over the API. Writes that must be atomic, or whose limits clients must not choose, go through RPCs that revoke `public` and `anon` explicitly.
-- **PM.** UAT-1 is a deliberate subset of the MVP: the trip loop, money and text posts. Photos wait on the moderation queue and CSAM gates. Open questions on edit rights, leftover cents, settlement rights and invite defaults are listed in the test plan, so each Phase 2 chunk answers them.
-- **UI/UX.**
-  - Sign-in now works when the link opens on a different device or in an in-app browser, and the code step masks the email.
-  - The invite-only screen offers "Use a different email".
-  - The contrast fixes are still open (`2o5.11`).
-- **Code review.**
-  - No raw database or auth error text reaches the UI.
-  - Read helpers throw, so an outage looks like an error rather than "nothing here".
-  - `pnpm check:secrets` guards the client boundary in CI.
+- **Architecture.** Writes are RPC-only, and each RPC charges the rate limit inside its own transaction. That is stricter than the AC's `withRateLimit` wording, and wrapping as well would charge twice. Leave, remove and delete share one departure hook. Leave and remove lock the membership row; delete locks the trip row.
+- **PM.** The founder answered §12 Q4, Q5 and Q7, and checks S7-N3, S7-N4 and S8-N4 reflect the answers. Defaults not asked about: trips are private only, and the six currencies all have two decimals and are fixed at creation.
+- **UI/UX.** The trip page reuses the existing motifs: the mono eyebrow, Fraunces display type, layered warm surfaces, and an anchored bottom bar on the forms. Destructive actions confirm in a native modal dialog with Cancel focused first. The member count is announced after a removal.
+- **Code review.** No raw database text reaches the UI. Ids are checked with `isUuid`. The signed-out redirect happens before any trip read.
+
+### Notes
+
+- Because of `loading.tsx`, a signed-out visit to a trip streams a skeleton and redirects with a meta refresh (HTTP 200) rather than a 307. The response contains no trip data. `/trips/new` has no loading boundary, so it returns a real 307.
+- `trips.currency` is readable wherever the trip is, because it's a unit, not an amount. Public and unlisted trips can't be created in UAT-1.
+- Pre-existing and outside this chunk: the home page's "Block @handle" links are 16px tall. `tripplanner-2o5.11` covers 44px targets.
+
+### Follow-ups
+
+- `tripplanner-tbm`: hand the organizer role to another member (post-UAT).
+- `tripplanner-2o5.3`: redefine `private.trip_departure_blocker` to return `unsettled_balance`, and add that status to the leave, remove and delete results and their copy.

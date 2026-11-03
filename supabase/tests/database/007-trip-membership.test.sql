@@ -1,6 +1,8 @@
 -- Finding 7 (P1): private trips could not be created (insert ... returning
 -- failed because the read policy had no organizer branch), and an organizer
--- could add anyone to a trip without their consent.
+-- could add anyone to a trip without their consent. Since tripplanner-718,
+-- trips are created through create_trip() and clients can't write trips or
+-- trip_members directly (010-trip-lifecycle.test.sql covers the RPCs).
 begin;
 select plan(7);
 
@@ -8,11 +10,10 @@ select tests.create_user('alice');
 select tests.create_user('bob');
 
 select tests.authenticate_as('alice');
-select lives_ok(
-  $$ insert into public.trips (organizer_id, name, visibility)
-     values (tests.id('alice'), 'Secret getaway', 'private')
-     returning id $$,
-  'the organizer can create a private trip and read it back'
+select is(
+  (select status from public.create_trip('Secret getaway', 'USD')),
+  'ok',
+  'the organizer can create a private trip'
 );
 
 reset role;
@@ -33,10 +34,11 @@ select throws_ok(
   '42501', null,
   'the organizer cannot add someone without their consent'
 );
-select lives_ok(
+select throws_ok(
   $$ delete from public.trip_members
      where trip_id = tests.id('Secret getaway') and profile_id = tests.id('alice') $$,
-  'deleting the organizer row is a silent no-op'
+  '42501', null,
+  'clients cannot delete membership rows directly'
 );
 
 reset role;

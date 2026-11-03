@@ -102,6 +102,23 @@ export async function requireProfile(): Promise<ProfileRow> {
 }
 
 /**
+ * `requireProfile` for pages people reach from a link, such as a trip: a
+ * signed-out visitor goes to sign-in first, before anything on the page
+ * loads, and lands back on `path` afterwards (the sign-in flow checks it
+ * with `safeNextPath`).
+ */
+export async function requireProfileFor(path: string): Promise<ProfileRow> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    redirect(`/auth/sign-in?next=${encodeURIComponent(path)}`);
+  }
+  return requireProfile();
+}
+
+/**
  * Whether the signed-in user's email may finish onboarding while Jettison is
  * invite-only (`private.onboarding_allowlist`).
  */

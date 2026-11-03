@@ -52,6 +52,7 @@ For parallel-chunk discipline (multiple chunks adding migrations concurrently), 
 - **Policies and recursion / caller RLS:** see "Policy patterns that bit us" in [`.cursor/rules/supabase-security.mdc`](../../rules/supabase-security.mdc). Use the `private.*` helpers from `20261029120000_rls_hardening.sql`.
 - **`supabase test db` always needs Docker.** It runs pg_prove in a container even with `--linked` or `--db-url`. With Docker down, let CI's `database` job run the suite.
 - **The linked project doesn't need the DB password** for `migration list`, `db push`, `db lint` or `gen types --linked`: after `supabase login`, the CLI creates a temporary login role ("Initialising login role...").
+- **`gen types --local` isn't the committed file's generator.** `database.types.ts` comes from the hosted generator. CLI 2.67.1's local output drops the `__InternalSupabase.PostgrestVersion` block, which supabase-js reads for typing, and reformats the helper generics. After a local regen, keep the committed file and splice in only your schema's hunks (new columns and functions), as `tripplanner-718` did.
 
 ## New table → checklist
 
