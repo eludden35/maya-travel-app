@@ -1,3 +1,9 @@
+import {
+  NodeClient,
+  defaultStackParser,
+  makeNodeTransport,
+  requestDataIntegration,
+} from "@sentry/nextjs";
 import { describe, expect, it } from "vitest";
 
 import { scrubInviteTokens, sentryOptions } from "@/lib/sentry-options";
@@ -23,6 +29,17 @@ describe("scrubInviteTokens", () => {
     expect(scrubbed.breadcrumbs[0]?.data.to).toBe("/join");
   });
 
+  it("leaves file paths alone, so stack traces still match source maps", () => {
+    const event = {
+      frames: [
+        { filename: "/var/task/.next/server/app/join/page.js" },
+        { filename: "app:///_next/static/chunks/app/join/page-3f9a1c.js" },
+        { filename: "app/join/join-button.tsx" },
+      ],
+    };
+    expect(scrubInviteTokens(event)).toBe(event);
+  });
+
   it("returns data without an invite path as the same object", () => {
     const event = { request: { url: "https://uat.example.com/trips/1" } };
     expect(scrubInviteTokens(event)).toBe(event);
@@ -45,11 +62,41 @@ describe("sentryOptions", () => {
     expect(JSON.stringify(options.beforeBreadcrumb(breadcrumb))).not.toContain(TOKEN);
   });
 
-  it("stays off without a DSN and sends no default PII", () => {
-    const options = sentryOptions();
-    expect(options.sendDefaultPii).toBe(false);
+  // SDK 11 ignores sendDefaultPii and collects cookies unless told not to.
+  // This runs a server request through the SDK's own request-data step.
+  it("keeps the invite cookie out of server events", async () => {
+    const client = new NodeClient({
+      ...sentryOptions(),
+      integrations: [],
+      stackParser: defaultStackParser,
+      transport: makeNodeTransport,
+    });
+    const event = {
+      sdkProcessingMetadata: {
+        normalizedRequest: {
+          url: "https://uat.example.com/join",
+          method: "GET",
+          headers: {
+            cookie: `jtsn_invite=${TOKEN}; jtsn_signin_email=friend%40example.com`,
+          },
+        },
+      },
+    };
+
+    const processed = await requestDataIntegration().processEvent?.(event, {}, client);
+    // The envelope drops sdkProcessingMetadata; the rest of the event is sent.
+    const sent = JSON.stringify(
+      sentryOptions().beforeSend({ ...processed, sdkProcessingMetadata: undefined }),
+    );
+
+    expect(processed?.request?.url).toBe("https://uat.example.com/join");
+    expect(sent).not.toContain(TOKEN);
+    expect(sent).not.toContain("friend");
+  });
+
+  it("stays off without a DSN", () => {
     if (!process.env.NEXT_PUBLIC_SENTRY_DSN) {
-      expect(options.enabled).toBe(false);
+      expect(sentryOptions().enabled).toBe(false);
     }
   });
 });

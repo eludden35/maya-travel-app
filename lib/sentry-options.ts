@@ -1,16 +1,20 @@
 /**
  * Shared Sentry settings for the browser, server and edge runtimes.
  *
- * Errors only: no performance tracing and no session replay. No default PII,
- * so Sentry stores no IP addresses, cookies or request bodies. The DSN is
+ * Errors only: no performance tracing and no session replay. The DSN is
  * public by design (it only allows sending events), hence NEXT_PUBLIC_.
  * NEXT_PUBLIC_APP_ENV tags events ("uat", "production"); it is set per
  * Vercel environment rather than read from VERCEL_ENV, because UAT runs on
  * Vercel's "production" environment.
  *
- * Invite links carry a bearer token in their path (/join/<token>), and
- * events and breadcrumbs record URLs, so every event and breadcrumb is
- * scrubbed before it leaves the process.
+ * SDK 11 no longer reads `sendDefaultPii`: `dataCollection` decides what an
+ * event carries, and it collects cookies by default, hiding only names it
+ * recognizes (Supabase's `sb-*` among them). Ours aren't among them, and
+ * `jtsn_invite` holds an invite link's bearer token (tripplanner-2o5.1), so
+ * cookies are off. Local variables are off too, since the token passes
+ * through them. Invite links also carry the token in their path
+ * (/join/<token>), and events and breadcrumbs record URLs, so every event
+ * and breadcrumb is scrubbed before it leaves the process.
  */
 export function sentryOptions() {
   const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
@@ -19,13 +23,15 @@ export function sentryOptions() {
     enabled: Boolean(dsn),
     environment: process.env.NEXT_PUBLIC_APP_ENV ?? "local",
     sendDefaultPii: false,
+    dataCollection: { cookies: false, stackFrameVariables: false },
     tracesSampleRate: 0,
     beforeSend: scrubInviteTokens,
     beforeBreadcrumb: scrubInviteTokens,
   };
 }
 
-const INVITE_PATH = /\/join\/[A-Za-z0-9_-]+/g;
+// The token's own shape, so file paths such as app/join/page.js keep theirs.
+const INVITE_PATH = /\/join\/[A-Za-z0-9_-]{22}(?![A-Za-z0-9_-])/g;
 
 /**
  * Rewrites every `/join/<token>` inside `data` to `/join/[token]`, wherever
