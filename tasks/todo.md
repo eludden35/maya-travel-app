@@ -452,7 +452,7 @@ Answered by the founder on 2026-11-03: the recommended column, for all four. The
   - `complete_onboarding` and `can_complete_onboarding` recreated with `p_invite_token`;
   - the `trip_invite` (30 an hour) and `trip_join` (20 an hour) rate limits.
 - **Library:**
-  - `lib/trip-invites.ts`: result unions; it reuses `toResult` and `toFailure`, now exported from `lib/trips.ts`.
+  - `lib/trip-invites.ts`: result unions; it reuses `toResult` and `toFailure` from `lib/rpc-result.ts`, which `2o5.2` added.
   - `lib/trip-invite-fields.ts`: token shape, choices and defaults, link state, expiry wording.
   - Invite-cookie helpers in `lib/auth-flow.ts`.
   - `canCompleteOnboarding` and `completeOnboarding` take the token.
@@ -487,6 +487,12 @@ Answered by the founder on 2026-11-03: the recommended column, for all four. The
   - The token isn't in the `/join` HTML.
   - The redirect is a 303 with `no-store`.
   - It appears only on the first request line in the server log.
+- **After merging `main` with `2o5.2`'s expenses (2026-11-03):**
+  - `pnpm test:db` passes 13 files and 377 tests, three of them new money checks in `011-trip-invites`.
+  - `pnpm test` passes 207 tests.
+  - `pnpm typecheck`, `pnpm lint` and `pnpm check:secrets` are clean.
+  - `pnpm test:e2e` passes on the production build and twice on a running `pnpm dev`. On a dev server that Playwright started cold, both specs timed out after "Create trip" while `/trips/[id]` compiled.
+  - Types generated from the reset database match `database.types.ts`, apart from the PostgrestVersion block and the generator's parentheses.
 
 ### Independent review (subagent, 2026-11-03)
 
@@ -502,7 +508,7 @@ Answered by the founder on 2026-11-03: the recommended column, for all four. The
 ### Notes
 
 - **Rotation** is `create_trip_invite` replacing the live link; there's no separate rotate RPC. The UI calls it "New link", with the same settings.
-- **The AC's "no money rows visible before joining"** can't be asserted yet, because no money table is on `main`. pgTAP asserts that joining adds exactly one `member` row and changes nothing else. The money-privacy matrix in `2o5.2` and `2o5.3` covers non-members.
+- **The AC's "no money rows visible before joining"** is asserted since the sync with `2o5.2` (2026-11-03): someone holding a live link sees no expense or share rows, and after joining sees them like any member. pgTAP also asserts that joining adds exactly one `member` row and changes nothing else.
 - **Residual exposure:** the first request line, `GET /join/<token>`, is in the host's access log, as with any link-based invite.
 - **Sign-in copy:** the code step shows "carry on with your invite" whenever the cookie exists, even for a dead link. The link page has already said it no longer works.
 - **For `2o5.9`:** a pending invite can be the `jtsn_invite` cookie on this device, before it's accepted. `readInviteToken` plus `getTripInvitePreview` give the trip.

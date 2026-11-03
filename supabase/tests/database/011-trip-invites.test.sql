@@ -5,7 +5,7 @@
 -- with anyone in the trip stops a join and looks like a dead link (Q9); only
 -- the organizer makes or turns off links (Q10); one live link per trip.
 begin;
-select plan(100);
+select plan(103);
 
 select tests.create_user('alice');                                                -- organizer
 select tests.create_user('bob');                                                  -- member
@@ -26,6 +26,16 @@ values (tests.id('Porto'), tests.id('bob'), 'member');
 insert into public.blocks (blocker_id, blocked_id) values
   (tests.id('bob'), tests.id('mallory')),
   (tests.id('oscar'), tests.id('alice'));
+
+-- Money on the trip, so "no money rows before joining" has rows to hide
+-- (tripplanner-2o5.2).
+select tests.authenticate_as('alice');
+select is(
+  (select status from public.create_expense(
+     tests.id('Porto'), tests.id('alice'), 'Hotel', 30000, 'equal',
+     array[tests.id('alice'), tests.id('bob')])),
+  'ok', 'setup: the organizer adds an expense, shared with bob');
+reset role;
 
 -- Tokens by name, readable while acting as anyone. Rolled back with the rest.
 create table tests.tokens (name text primary key, token text not null);
@@ -221,9 +231,21 @@ select is((select status from public.accept_trip_invite('AAAAAAAAAAAAAAAAAAAAAA'
 select is((select status from public.accept_trip_invite('not a token')),
   'invalid', 'so is a malformed one');
 select results_eq(
+  $$ select (select count(*)::int from public.expenses where trip_id = tests.id('Porto')),
+            (select count(*)::int from public.expense_shares where trip_id = tests.id('Porto')) $$,
+  $$ values (0, 0) $$,
+  'holding a live link shows no money rows before joining'
+);
+select results_eq(
   $$ select status, trip_id from public.accept_trip_invite(tests.token('link 1')) $$,
   $$ values ('ok'::text, tests.id('Porto')) $$,
   'a live link lets an onboarded user join'
+);
+select results_eq(
+  $$ select (select count(*)::int from public.expenses where trip_id = tests.id('Porto')),
+            (select count(*)::int from public.expense_shares where trip_id = tests.id('Porto')) $$,
+  $$ values (1, 2) $$,
+  'once in, they see the trip''s expenses like any member'
 );
 
 reset role;

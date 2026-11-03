@@ -387,11 +387,8 @@ function hasValidDates(details: TripDetails): boolean {
   );
 }
 
-/**
- * Turn a status-returning trip RPC's answer into a result union. Shared with
- * `lib/trip-invites.ts`.
- */
-export function toResult<E extends string>(
+/** Turn a status-returning trip RPC's answer into a result union. */
+function toResult<E extends string>(
   operation: string,
   status: string | null,
   error: { code?: string; message: string } | null,
@@ -408,7 +405,7 @@ export function toResult<E extends string>(
  * status this module doesn't know yet (a newer migration's), becomes
  * "unknown" and is logged; raw database text never reaches the UI.
  */
-export function toFailure<E extends string>(
+function toFailure<E extends string>(
   operation: string,
   status: string | null,
   error: { code?: string; message: string } | null,

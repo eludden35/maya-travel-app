@@ -2,10 +2,10 @@ import "server-only";
 
 import type { Database } from "@/database.types";
 import { DataAccessError } from "@/lib/errors";
+import { toFailure, toResult } from "@/lib/rpc-result";
 import { getSiteUrl } from "@/lib/site-url";
 import { createClient } from "@/lib/supabase/server";
 import { isInviteToken, type InviteSettings } from "@/lib/trip-invite-fields";
-import { toFailure, toResult } from "@/lib/trips";
 
 /**
  * Server-only invite-link helpers (Bead tripplanner-2o5.1).
