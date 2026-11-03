@@ -1,6 +1,6 @@
 # tripplanner-2o5.6: text posts in a trip, Report, and the founder's reports page
 
-**Bead:** [`tripplanner-2o5.6`](#) (epic [`tripplanner-2o5`](#); blocks `2o5.10`, `2o5.13`, `s3a.7`, `s3a.15`). **Test plan:** S6, PV6 and §12 Q1 in [`docs/uat/uat-1-test-plan.md`](../docs/uat/uat-1-test-plan.md). **Status:** the founder approved D1–D4 and the defaults on 2026-11-03. Built and proven on the local stack; the PR is waiting for the founder to merge.
+**Bead:** [`tripplanner-2o5.6`](#) (epic [`tripplanner-2o5`](#); blocks `2o5.10`, `2o5.13`, `s3a.7`, `s3a.15`). **Test plan:** S6, PV6 and §12 Q1 in [`docs/uat/uat-1-test-plan.md`](../docs/uat/uat-1-test-plan.md). **Status:** the founder approved D1–D4 and the defaults on 2026-11-03. Built and proven on the local stack; [PR #8](https://github.com/eludden35/maya-travel-app/pull/8) is waiting for the founder to merge.
 
 ## Goal
 
@@ -79,7 +79,7 @@ Defaults I'll use unless the founder objects:
   - Note on `s3a.15`: how to extend `reports`.
   - Note on `s3a.25`: the post and report surfaces are wired.
   - Follow-ups: clickable links in posts (`tripplanner-vh8`); restoring a taken-down post (`tripplanner-aob`, with `s3a.6`); the production hang (`tripplanner-tyl`).
-- [ ] Sync with `main`; make sure the migration's timestamp sorts after every one there; open the PR; get CI green.
+- [x] Sync with `main` (nothing new); the migration's timestamp sorts after every one there and in the sibling branches; open the PR: [#8](https://github.com/eludden35/maya-travel-app/pull/8).
 
 ## Verification
 
