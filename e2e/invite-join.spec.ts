@@ -90,7 +90,7 @@ test("a friend joins a trip from its invite link", async ({ browser, page }) => 
 
   // S3 step 3: the organizer sees them, and the link counts one use.
   await page.reload();
-  await expect(page.getByText("Fran Friend")).toBeVisible();
+  await expect(page.getByText("Fran Friend", { exact: true })).toBeVisible();
   await expect(page.getByText("Expires in 7 days · 1 of 10 joined")).toBeVisible();
 
   // S3 step 5: opening the link again goes straight to the trip.

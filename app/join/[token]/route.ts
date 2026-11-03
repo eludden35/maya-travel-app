@@ -11,12 +11,14 @@ import { isInviteToken } from "@/lib/trip-invite-fields";
  * invitation. After that the token isn't in the address bar, browser history,
  * any later URL or Referer header, or a Sentry event, and sign-in and
  * onboarding carry it without putting it in `next`. This request line is the
- * one place it's logged, which any link-based invite has. Nothing is read or
- * written in the database here, so a chat app fetching the link for a
- * preview changes nothing.
+ * one place it's logged, which any link-based invite has. A redirect keeps
+ * the page the link was opened from as the referrer, so the token never
+ * becomes one. Nothing is read or written in the database here, so a chat
+ * app fetching the link for a preview changes nothing.
  *
  * A token of the wrong shape clears any earlier invite, so /join gives the
- * same "no longer works" answer as for a link that died.
+ * same "no longer works" answer as for a link that died. `no-store` keeps the
+ * response, and its Set-Cookie, out of shared caches.
  */
 export async function GET(
   request: NextRequest,
@@ -30,7 +32,6 @@ export async function GET(
   }
 
   const response = NextResponse.redirect(new URL("/join", request.url), 303);
-  response.headers.set("Referrer-Policy", "no-referrer");
   response.headers.set("Cache-Control", "no-store");
   return response;
 }
