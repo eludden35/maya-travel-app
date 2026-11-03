@@ -9,6 +9,8 @@
 --                      and "Joshua Tree climbing" (public)
 --   bob@example.com    onboarded; member of the Lisbon trip; follows alice
 --   carol@example.com  signed up but not onboarded, to try onboarding
+--   founder@example.com  onboarded moderator in no trip; reviews reports at
+--                        /admin/reports (set at the end of this file)
 --
 -- '@example.com' is allow-listed, so any new example.com address (the
 -- end-to-end tests use these) can finish onboarding.
@@ -63,3 +65,37 @@ values ('22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-1111111
 
 insert into private.onboarding_allowlist (entry, note)
 values ('@example.com', 'local development and end-to-end tests');
+
+-- tripplanner-2o5.6: a moderator for /admin/reports, and two trip notes.
+-- On hosted projects is_moderator is set by hand; no one can set their own.
+insert into auth.users (
+  instance_id, id, aud, role, email, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change
+)
+values
+  ('00000000-0000-0000-0000-000000000000', '44444444-4444-4444-8444-444444444444',
+   'authenticated', 'authenticated', 'founder@example.com', now(),
+   '{"provider":"email","providers":["email"]}', '{}', now(), now(), '', '', '', '');
+
+insert into auth.identities (
+  id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at
+)
+select
+  gen_random_uuid(), u.id, u.id::text,
+  jsonb_build_object('sub', u.id::text, 'email', u.email, 'email_verified', true),
+  'email', now(), now(), now()
+from auth.users u
+where u.email = 'founder@example.com';
+
+insert into public.profiles (id, handle, display_name, is_moderator)
+values ('44444444-4444-4444-8444-444444444444', 'founder', 'Fran Founder', true);
+
+insert into public.trip_posts (trip_id, author_id, body, created_at)
+values
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '11111111-1111-4111-8111-111111111111',
+   E'Booked the flat in Alfama. Check-in is from 3pm,\nand the key is in the lockbox by the door.',
+   now() - interval '2 days'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '22222222-2222-4222-8222-222222222222',
+   'Landing at 11:40 on Friday. Anyone up for pastéis straight from the airport?',
+   now() - interval '1 day');

@@ -327,6 +327,86 @@ export type Database = {
         }
         Relationships: []
       }
+      reports: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_note: string | null
+          id: string
+          note: string | null
+          reason: Database["public"]["Enums"]["report_reason"]
+          reported_text: string
+          reporter_id: string | null
+          status: Database["public"]["Enums"]["report_status"]
+          target_author_id: string | null
+          target_id: string
+          target_type: Database["public"]["Enums"]["report_target_type"]
+          trip_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          id?: string
+          note?: string | null
+          reason: Database["public"]["Enums"]["report_reason"]
+          reported_text: string
+          reporter_id?: string | null
+          status?: Database["public"]["Enums"]["report_status"]
+          target_author_id?: string | null
+          target_id: string
+          target_type: Database["public"]["Enums"]["report_target_type"]
+          trip_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          id?: string
+          note?: string | null
+          reason?: Database["public"]["Enums"]["report_reason"]
+          reported_text?: string
+          reporter_id?: string | null
+          status?: Database["public"]["Enums"]["report_status"]
+          target_author_id?: string | null
+          target_id?: string
+          target_type?: Database["public"]["Enums"]["report_target_type"]
+          trip_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reports_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_reporter_id_fkey"
+            columns: ["reporter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_target_author_id_fkey"
+            columns: ["target_author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tos_acceptances: {
         Row: {
           accepted_at: string
@@ -383,6 +463,58 @@ export type Database = {
           },
           {
             foreignKeyName: "trip_members_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_posts: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+          taken_down_at: string | null
+          taken_down_by: string | null
+          trip_id: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          id?: string
+          taken_down_at?: string | null
+          taken_down_by?: string | null
+          trip_id: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          taken_down_at?: string | null
+          taken_down_by?: string | null
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_posts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_posts_taken_down_by_fkey"
+            columns: ["taken_down_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_posts_trip_id_fkey"
             columns: ["trip_id"]
             isOneToOne: false
             referencedRelation: "trips"
@@ -471,7 +603,19 @@ export type Database = {
           trip_id: string
         }[]
       }
+      create_trip_post: {
+        Args: { p_body: string; p_trip_id: string }
+        Returns: {
+          post_id: string
+          status: string
+        }[]
+      }
+      decide_report: {
+        Args: { p_decision: string; p_note?: string; p_report_id: string }
+        Returns: string
+      }
       delete_trip: { Args: { p_trip_id: string }; Returns: string }
+      delete_trip_post: { Args: { p_post_id: string }; Returns: string }
       get_trip: {
         Args: { p_trip_id: string }
         Returns: {
@@ -503,10 +647,51 @@ export type Database = {
           role: Database["public"]["Enums"]["trip_member_role"]
         }[]
       }
+      get_trip_posts: {
+        Args: { p_before?: string; p_limit?: number; p_trip_id: string }
+        Returns: {
+          author_display_name: string
+          author_handle: string
+          author_id: string
+          body: string
+          created_at: string
+          id: string
+          is_own: boolean
+          reported_by_me: boolean
+          taken_down: boolean
+        }[]
+      }
       is_moderator: { Args: { profile_id: string }; Returns: boolean }
       leave_trip: { Args: { p_trip_id: string }; Returns: string }
+      list_reports: {
+        Args: { p_limit?: number; p_open?: boolean }
+        Returns: {
+          author_display_name: string
+          author_handle: string
+          created_at: string
+          decided_at: string
+          decided_by_handle: string
+          decision_note: string
+          id: string
+          note: string
+          reason: Database["public"]["Enums"]["report_reason"]
+          reported_text: string
+          reporter_display_name: string
+          reporter_handle: string
+          status: Database["public"]["Enums"]["report_status"]
+          target_id: string
+          target_state: string
+          target_type: Database["public"]["Enums"]["report_target_type"]
+          trip_id: string
+          trip_name: string
+        }[]
+      }
       remove_trip_member: {
         Args: { p_profile_id: string; p_trip_id: string }
+        Returns: string
+      }
+      report_trip_post: {
+        Args: { p_note?: string; p_post_id: string; p_reason: string }
         Returns: string
       }
       update_trip: {
@@ -532,6 +717,15 @@ export type Database = {
         | "unrelated_to_trip"
         | "spam"
         | "other"
+      report_reason:
+        | "harassment"
+        | "hate"
+        | "private_info"
+        | "sexual"
+        | "spam"
+        | "other"
+      report_status: "open" | "resolved" | "dismissed"
+      report_target_type: "trip_post"
       trip_member_role: "organizer" | "member"
       trip_visibility: "private" | "unlisted" | "public"
     }
@@ -676,8 +870,19 @@ export const Constants = {
         "spam",
         "other",
       ],
+      report_reason: [
+        "harassment",
+        "hate",
+        "private_info",
+        "sexual",
+        "spam",
+        "other",
+      ],
+      report_status: ["open", "resolved", "dismissed"],
+      report_target_type: ["trip_post"],
       trip_member_role: ["organizer", "member"],
       trip_visibility: ["private", "unlisted", "public"],
     },
   },
 } as const
+
