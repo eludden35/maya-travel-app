@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -170,6 +172,28 @@ function simplifyProblem(balances: readonly Balance[]): string | null {
   );
 }
 
+/**
+ * The codes in the newest definition of `private.is_supported_currency()`
+ * across the migrations: the list the database checks `trips.currency`
+ * against.
+ */
+function databaseCurrencies(): string[] {
+  const migrations = new URL("../supabase/migrations/", import.meta.url);
+  const definitions = readdirSync(migrations)
+    .filter((file) => file.endsWith(".sql"))
+    .sort()
+    .flatMap((file) => [
+      ...readFileSync(new URL(file, migrations), "utf8").matchAll(
+        /create\s+(?:or\s+replace\s+)?function\s+private\.is_supported_currency\s*\([\s\S]*?\$\$([\s\S]*?)\$\$/gi,
+      ),
+    ]);
+  const body = definitions.at(-1)?.[1];
+  if (body === undefined) {
+    throw new Error("No migration defines private.is_supported_currency()");
+  }
+  return [...body.matchAll(/'([A-Z]{3})'/g)].map((match) => match[1]);
+}
+
 describe("CURRENCIES", () => {
   it("uses each currency's ISO 4217 minor-unit exponent", () => {
     expect(
@@ -179,7 +203,13 @@ describe("CURRENCIES", () => {
           exponent,
         ]),
       ),
-    ).toEqual({ USD: 2, EUR: 2, GBP: 2, CAD: 2, MXN: 2, JPY: 0 });
+    ).toEqual({ USD: 2, CAD: 2, MXN: 2, EUR: 2, GBP: 2, AUD: 2 });
+  });
+
+  it("holds the same codes the database accepts for trips.currency", () => {
+    expect(Object.keys(CURRENCIES).sort()).toEqual(
+      databaseCurrencies().sort(),
+    );
   });
 });
 
@@ -489,8 +519,8 @@ describe("parseMoney", () => {
     ["1,000,000.00", "USD", 100_000_000],
     ["999,999,999.99", "USD", MAX_AMOUNT_MINOR],
     ["  42.00 ", "EUR", 4_200],
-    ["1,235", "JPY", 1_235],
-    ["1235.", "JPY", 1_235],
+    ["1,235", "AUD", 123_500],
+    ["1235.", "AUD", 123_500],
   ])("reads %j in %s as %d", (input, currency, amount) => {
     expect(parseMoney(input, currency)).toEqual({ ok: true, amount });
   });
@@ -516,8 +546,7 @@ describe("parseMoney", () => {
     ["１２", "USD", "invalid"],
     ["12.345", "USD", "too_many_decimals"],
     ["12.340", "USD", "too_many_decimals"],
-    ["12.5", "JPY", "too_many_decimals"],
-    ["12.0", "JPY", "too_many_decimals"],
+    ["0.001", "AUD", "too_many_decimals"],
     ["1,000,000,000.00", "USD", "too_large"],
     ["99999999999999999999", "USD", "too_large"],
   ])(
@@ -569,9 +598,7 @@ describe("formatMoney", () => {
     [1_250, "GBP", "£12.50"],
     [1_250, "CAD", "CA$12.50"],
     [1_250, "MXN", "MX$12.50"],
-    [1_235, "JPY", "¥1,235"],
-    [0, "JPY", "¥0"],
-    [-1_235, "JPY", `${MINUS}¥1,235`],
+    [1_250, "AUD", "A$12.50"],
   ])("shows %d %s as %s", (amount, currency, text) => {
     expect(formatMoney(amount, currency)).toBe(text);
   });
@@ -616,7 +643,7 @@ describe("toMoneyInput", () => {
     [123_456, "USD", "1234.56"],
     [5, "USD", "0.05"],
     [0, "USD", "0.00"],
-    [1_235, "JPY", "1235"],
+    [1_250, "AUD", "12.50"],
   ])("writes %d %s as %j", (amount, currency, text) => {
     expect(toMoneyInput(amount, currency)).toBe(text);
   });
