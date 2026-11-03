@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 
 import {
   deleteTripAction,
@@ -8,6 +9,7 @@ import {
   removeTripMemberAction,
 } from "@/app/_actions/trips-actions";
 import { ConfirmAction } from "@/app/trips/_components/confirm-action";
+import { TripNotes, TripNotesSkeleton } from "@/app/trips/_components/trip-notes";
 import { requireProfileFor } from "@/lib/profiles";
 import { formatTripDates, formatTripLength } from "@/lib/trip-dates";
 import { getTripById, getTripMembers, type TripVisibility } from "@/lib/trips";
@@ -30,8 +32,9 @@ const DESTRUCTIVE_BUTTON =
 
 /**
  * A trip's page (Bead tripplanner-718): its details and who's going. Later
- * beads add sections here: invites (tripplanner-2o5.1), posts (2o5.6),
- * costs and balances (2o5.2, 2o5.3, 2o5.5).
+ * beads add sections here: invites (tripplanner-2o5.1), trip notes (2o5.6,
+ * `TripNotes`, members only, streamed in after who's going), costs and
+ * balances (2o5.2, 2o5.3, 2o5.5).
  *
  * - Signed out: sign-in first, before anything loads (test plan S2-N2).
  * - Can't see the trip, or it doesn't exist: the same "not found" (S2-N3).
@@ -43,8 +46,10 @@ const DESTRUCTIVE_BUTTON =
  */
 export default async function TripPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ before?: string | string[] }>;
 }) {
   const { id } = await params;
   const profile = await requireProfileFor(isUuid(id) ? `/trips/${id}` : "/");
@@ -61,6 +66,9 @@ export default async function TripPage({
   const isMember = members.some((m) => m.profile_id === profile.id);
   const isOrganizer = trip.organizer_id === profile.id;
   const length = formatTripLength(trip.start_date, trip.end_date);
+  // "Show older notes" pages by the oldest note shown so far.
+  const { before } = await searchParams;
+  const notesBefore = typeof before === "string" && isUuid(before) ? before : null;
 
   return (
     <main className="flex flex-1 flex-col items-center px-6 pt-6 pb-12 bg-paper text-ink">
@@ -167,6 +175,12 @@ export default async function TripPage({
             Only the people on this trip can see who&apos;s going.
           </p>
         )}
+
+        {isMember ? (
+          <Suspense fallback={<TripNotesSkeleton />}>
+            <TripNotes tripId={trip.id} before={notesBefore} />
+          </Suspense>
+        ) : null}
 
         {isMember ? (
           <section

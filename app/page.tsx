@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { BlockLink } from "@/app/_components/block-link";
 import { FollowButton } from "@/app/_components/follow-button";
+import { ModeratorLink } from "@/app/_components/moderator-link";
 import { getBlockedProfileIds } from "@/lib/blocks";
 import { getFollowCounts } from "@/lib/follows";
 import {
@@ -75,6 +76,8 @@ export default async function Home() {
             <span className="text-ink">{counts.following}</span> following
           </p>
         </header>
+
+        {profile.is_moderator ? <ModeratorLink /> : null}
 
         <section
           aria-labelledby="your-trips"

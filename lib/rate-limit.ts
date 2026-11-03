@@ -32,7 +32,11 @@ export const RATE_LIMITS = {
   PROFILE_UPDATE: { surface: "profile_update" },
   FOLLOW: { surface: "follow" },
   BLOCK: { surface: "block" },
+  // POST and POST_DAILY are charged inside create_trip_post, and REPORT
+  // inside report_trip_post (tripplanner-2o5.6).
   POST: { surface: "post" },
+  POST_DAILY: { surface: "post_daily" },
+  REPORT: { surface: "report" },
   COMMENT: { surface: "comment" },
   DM: { surface: "dm" },
   JOIN_REQUEST: { surface: "join_request" },
