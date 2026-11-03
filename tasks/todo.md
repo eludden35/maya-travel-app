@@ -136,11 +136,11 @@ Defaults I'll use unless the founder objects:
 
 ### Notes
 
-- **Production builds hang on Next 16.2.4 (`tripplanner-tyl`, P1).** On a trip with about 15 or more notes, "Pin to trip" saves the note, but the button stays on "Pinning…" and the note shows only after a reload. Any action that revalidates a page that large does the same, Remove member included.
+- **Production builds hang on Next 16.2.4 (`tripplanner-tyl`, P1).** "Pin to trip" saves the note, but the button stays on "Pinning…" and the note shows only after a reload. Reporting sticks on "Sending…" the same way, and so does any action that revalidates the page, Remove member included. On this machine it takes about 15 notes; on CI's slower runner it takes 2.
   - **Cause:** the React canary inside Next 16.2.4 splits Flight rows over 3,200 bytes into lazy chunks, and the transition that renders them loses its wake-up.
   - **Ruled out:** Sentry, the Suspense boundary, link prefetch and the keyed composer.
   - **Fix:** Next 16.4.4 passes the posts e2e 3 of 3 with 25 notes, where 16.2.4 fails 3 of 3.
-  - **CI:** the seed has 2 notes, so CI stays green until then. Upgrade before UAT invites go out; test plan S6-N9 checks it by hand.
+  - **CI hits it too.** In run 41685685082 on `5fe9d3a`, the report hung with 2 notes, and the retry's post hung with 3. The server answered both in under 260 ms, and the browser logged no errors. A slower CPU makes it likelier, so phones in UAT will hit it. Upgrade before UAT invites go out; test plan S6-N9 checks it by hand.
 - **Sentry:** note bodies and report notes are Server Action posts, so their text reaches Sentry request bodies until `tripplanner-7pl` lands.
 - **Merging with the sibling branches.** Small conflicts are expected. Keep both sides, and regenerate the types the `project-supabase` way:
   - `app/trips/[id]/page.tsx`: both this branch and `2o5.1` add an import after `confirm-action`;

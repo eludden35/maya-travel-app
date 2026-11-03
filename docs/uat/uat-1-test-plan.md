@@ -228,7 +228,7 @@ Check IDs (for example `S5-N2`) are what defect reports cite. "Refused" means th
 | S6-N6 C looks for Edit, or for Report on their own post | Neither: nobody edits a post, and your own posts offer Delete instead |
 | S6-N7 C opens Report again on B's post | The button reads "Reported"; nothing is sent twice |
 | S6-N8 ADM dismisses a report | The post stays up for everyone |
-| S6-N9 On a trip with 20 or more posts, B pins one more | It appears and the box clears within a few seconds (`tripplanner-tyl`) |
+| S6-N9 On a phone, on a trip with 20 or more posts, B pins one more and C reports it | Each finishes within a few seconds: the post appears and the box clears, then the thank-you shows; nothing sticks on "Pinning…" or "Sending…" (`tripplanner-tyl`) |
 
 ### S7. Leave a trip or remove a member, with the balance rule
 
