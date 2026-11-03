@@ -72,6 +72,123 @@ export type Database = {
           },
         ]
       }
+      expense_shares: {
+        Row: {
+          amount: number
+          expense_id: string
+          member_id: string
+          trip_id: string
+        }
+        Insert: {
+          amount: number
+          expense_id: string
+          member_id: string
+          trip_id: string
+        }
+        Update: {
+          amount?: number
+          expense_id?: string
+          member_id?: string
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_shares_expense_id_trip_id_fkey"
+            columns: ["expense_id", "trip_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id", "trip_id"]
+          },
+          {
+            foreignKeyName: "expense_shares_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expenses: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          description: string
+          id: string
+          payer_id: string
+          split: Database["public"]["Enums"]["expense_split"]
+          trip_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description: string
+          id?: string
+          payer_id: string
+          split: Database["public"]["Enums"]["expense_split"]
+          trip_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string
+          id?: string
+          payer_id?: string
+          split?: Database["public"]["Enums"]["expense_split"]
+          trip_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expenses_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_payer_id_fkey"
+            columns: ["payer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       follows: {
         Row: {
           created_at: string
@@ -458,6 +575,21 @@ export type Database = {
         Returns: string
       }
       consume_rate_limit: { Args: { p_surface: string }; Returns: number }
+      create_expense: {
+        Args: {
+          p_amount: number
+          p_amounts?: number[]
+          p_description: string
+          p_member_ids: string[]
+          p_payer_id: string
+          p_split: Database["public"]["Enums"]["expense_split"]
+          p_trip_id: string
+        }
+        Returns: {
+          expense_id: string
+          status: string
+        }[]
+      }
       create_trip: {
         Args: {
           p_currency: string
@@ -471,6 +603,7 @@ export type Database = {
           trip_id: string
         }[]
       }
+      delete_expense: { Args: { p_expense_id: string }; Returns: string }
       delete_trip: { Args: { p_trip_id: string }; Returns: string }
       get_trip: {
         Args: { p_trip_id: string }
@@ -509,6 +642,18 @@ export type Database = {
         Args: { p_profile_id: string; p_trip_id: string }
         Returns: string
       }
+      update_expense: {
+        Args: {
+          p_amount: number
+          p_amounts?: number[]
+          p_description: string
+          p_expense_id: string
+          p_member_ids: string[]
+          p_payer_id: string
+          p_split: Database["public"]["Enums"]["expense_split"]
+        }
+        Returns: string
+      }
       update_trip: {
         Args: {
           p_description?: string
@@ -521,6 +666,7 @@ export type Database = {
       }
     }
     Enums: {
+      expense_split: "equal" | "exact"
       image_state: "pending_media" | "pending_review" | "approved" | "rejected"
       moderation_actor_kind: "human" | "system"
       moderation_verdict: "approve" | "reject"
@@ -664,6 +810,7 @@ export const Constants = {
   },
   public: {
     Enums: {
+      expense_split: ["equal", "exact"],
       image_state: ["pending_media", "pending_review", "approved", "rejected"],
       moderation_actor_kind: ["human", "system"],
       moderation_verdict: ["approve", "reject"],
