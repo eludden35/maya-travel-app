@@ -201,8 +201,8 @@ Decided on 2026-11-03: the founder took every recommendation, and the defaults b
 - [x] Regenerate `database.types.ts` locally and splice in only the new hunks.
 - [x] `lib/expenses.ts`, `lib/rpc-result.ts` and `EXPENSE_WRITE` in `lib/rate-limit.ts`, with Vitest, including the equal-split parity fixture.
 - [x] Test plan: answer §12 Q1 (the expense half) and add the matching checks (S4-N5, S4-N6, S7-N5).
-- [ ] Hand-over notes on `2o5.3` and `2o5.5`, and a note on `2o5.2` linking the PR.
-- [ ] Sync with `main`, check the migration timestamp sorts last, open the PR and get CI green.
+- [x] Hand-over notes on `2o5.3` and `2o5.5`, and a note on `2o5.2` linking the PR.
+- [ ] Sync with `main`, check the migration timestamp sorts last, open the PR and get CI green: [PR #6](https://github.com/eludden35/maya-travel-app/pull/6) is open; close `2o5.2` when it merges.
 
 ## Verification
 
