@@ -43,6 +43,9 @@ export const RATE_LIMITS = {
   TOS_ACCEPT: { surface: "tos_accept" },
   TRIP_CREATE: { surface: "trip_create" },
   TRIP_WRITE: { surface: "trip_write" },
+  // Charged inside create_expense, update_expense and delete_expense
+  // (tripplanner-2o5.2).
+  EXPENSE_WRITE: { surface: "expense_write" },
   TRIP_INVITE: { surface: "trip_invite" },
   TRIP_JOIN: { surface: "trip_join" },
 } as const;

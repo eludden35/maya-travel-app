@@ -174,6 +174,8 @@ Check IDs (for example `S5-N2`) are what defect reports cite. "Refused" means th
 | S4-N2 $0.02 paid by A, split equally three ways | A $0.01; one of B and C $0.01 and the other $0.00, always the same one; sum $0.02 |
 | S4-N3 $1,000,000.00 | Saved, or refused with a stated cap |
 | S4-N4 Every amount | Two decimals, tabular figures, the trip currency, no float artifacts like 33.330000001 |
+| S4-N5 C looks for Edit and Delete on B's step 6 dinner | None: only the payer, whoever added it and the organizer can change an expense |
+| S4-N6 (ADM) The expense deleted in step 3 | Still in the database, with who deleted it and when; no member sees it and no balance counts it |
 
 ### S5. Balances, simplified debts, mark as paid
 
@@ -243,6 +245,7 @@ Check IDs (for example `S5-N2`) are what defect reports cite. "Refused" means th
 | S7-N2 The taxi C paid before leaving | Still in the history; balances still sum to $0.00 |
 | S7-N3 A looks for "Leave trip" | None; the page says the organizer stays until the trip is deleted |
 | S7-N4 A deletes the trip while B still owes $14.00 | Refused: says what to settle first; nothing is deleted |
+| S7-N5 After C leaves, A tries to edit or delete an expense C was part of | Refused: someone on it has left the trip; nothing changes |
 
 ### S8. Settings, block and unblock, second device
 
@@ -347,6 +350,11 @@ Enter Pass with the date and build SHA, or the failing Bead ID.
 Gaps in the Phase 2 spec that change what a scenario expects. Answer each in its chunk plan, then update this file.
 
 1. Who can edit or delete an expense or a post, and what does an admin decision on a report do to the post?
+   - **Expenses, answered 2026-11-03 (founder, `tripplanner-2o5.2`):**
+     - **Who:** the payer, the member who added the expense, or the organizer can edit or delete it. Other members see it but can't change it.
+     - **Delete is soft:** the expense disappears for every member and stops counting toward balances. The row stays, with who deleted it and when, so the founder can audit or restore it.
+     - **Departures freeze it:** once the payer or anyone in the split has left the trip, the expense can't be edited or deleted, so a settled balance never moves.
+     - S4-N5, S4-N6 and S7-N5 check these rules.
 2. Which member gets the leftover cent? **Answered 2026-11-02 (`tripplanner-2o5.4`):** in an equal split everyone gets the amount ÷ n rounded down, and the leftover cents go one each to the payer first, if they're in the split, then to the other members in ascending member-ID order. Shares never differ by more than a cent, and the same amount, payer and members always give the same shares. `splitEqual` in `lib/money.ts` implements it; S4 steps 1–2 and S4-N2 expect it.
 3. Who can mark a debt as paid or void it (payer, payee or either), and are partial payments or overpayment allowed?
 4. Can the organizer leave, and can a trip with expenses be deleted? S7 assumes the zero-balance rule also blocks removal.
