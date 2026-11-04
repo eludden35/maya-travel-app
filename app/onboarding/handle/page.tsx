@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 
 import { submitHandleAction } from "@/app/onboarding/handle/actions";
+import { readInviteToken } from "@/lib/auth-flow";
 import { createClient } from "@/lib/supabase/server";
 import { canCompleteOnboarding, getCurrentProfile } from "@/lib/profiles";
+import { getTripInvitePreview } from "@/lib/trip-invites";
 
 import { HandleForm } from "./handle-form";
 
@@ -20,9 +22,11 @@ import { HandleForm } from "./handle-form";
  * Routing rules (enforced here, not just by `requireProfile`):
  *  - Not signed in -> redirect to /auth/sign-in.
  *  - Signed in AND profile already exists -> redirect to /.
- *  - Signed in, no profile, email not on the invite-only allow-list ->
- *    render the invite-only screen instead of the form.
- *  - Signed in AND no profile -> render this page.
+ *  - Signed in, no profile, email not on the invite-only allow-list and no
+ *    live trip invite -> render the invite-only screen instead of the form.
+ *  - Signed in AND no profile -> render this page. Arriving from an invite
+ *    link (tripplanner-2o5.1), the page names the trip they're joining, and
+ *    finishing onboarding joins it in the same step.
  *
  * `?error=...` from the Server Action is read here and rendered next to the
  * field. Error codes are an enum, never reflected free-form.
@@ -45,9 +49,13 @@ export default async function OnboardingHandlePage({
     redirect("/");
   }
 
-  if (!(await canCompleteOnboarding())) {
-    return <InviteOnly email={user.email ?? null} />;
+  const inviteToken = await readInviteToken();
+  if (!(await canCompleteOnboarding(inviteToken))) {
+    return (
+      <InviteOnly email={user.email ?? null} inviteFailed={inviteToken !== null} />
+    );
   }
+  const invitation = inviteToken ? await getTripInvitePreview(inviteToken) : null;
 
   const { error } = await searchParams;
   const errorCopy = errorMessageFor(error);
@@ -72,6 +80,15 @@ export default async function OnboardingHandlePage({
             Pick the handle people will find you under, and the name they&apos;ll
             see on your trips.
           </p>
+          {invitation ? (
+            <p className="mt-2 rounded-2xl bg-card px-4 py-3 text-sm text-secondary">
+              Then you&apos;re in{" "}
+              <span className="font-medium text-ink break-words">
+                {invitation.tripName}
+              </span>
+              , with {invitation.organizerDisplayName}.
+            </p>
+          ) : null}
         </header>
 
         <section
@@ -139,11 +156,19 @@ function errorFieldFor(code: string | undefined): "handle" | "display_name" | nu
 }
 
 /**
- * Shown instead of the form while Jettison is invite-only and the signed-in
- * email is not on `private.onboarding_allowlist`. The account exists (it was
- * created by the sign-in email) but has no profile, so it can see nothing.
+ * Shown instead of the form while Jettison is invite-only, the signed-in
+ * email is not on `private.onboarding_allowlist` and there's no live trip
+ * invite. The account exists (it was created by the sign-in email) but has
+ * no profile, so it can see nothing. `inviteFailed`: they came from an invite
+ * link that stopped working on the way.
  */
-function InviteOnly({ email }: { email: string | null }) {
+function InviteOnly({
+  email,
+  inviteFailed,
+}: {
+  email: string | null;
+  inviteFailed: boolean;
+}) {
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-6 py-12 bg-paper text-ink">
       <div className="w-full max-w-sm flex flex-col gap-8">
@@ -152,19 +177,23 @@ function InviteOnly({ email }: { email: string | null }) {
             Jettison
           </p>
           <h1 className="font-display text-3xl leading-tight">
-            Jettison is invite-only for now.
+            {inviteFailed
+              ? "This invite no longer works."
+              : "Jettison is invite-only for now."}
           </h1>
           <p className="text-secondary text-sm">
-            We&apos;re testing with a small group of friends.
+            {inviteFailed
+              ? "Ask whoever sent it for a new link."
+              : "We’re testing with a small group of friends. Got a trip invite link? Open it on this device to carry on."}
             {email ? (
               <>
                 {" "}
-                Ask the person who invited you to add{" "}
+                Or ask the person who invited you to add{" "}
                 <span className="font-mono text-ink break-all">{email}</span>,
                 then sign in again.
               </>
             ) : (
-              <> Ask the person who invited you to add your email.</>
+              <> Or ask the person who invited you to add your email.</>
             )}
           </p>
         </header>
