@@ -558,3 +558,62 @@ Then run E4 on UAT.
   - A browser error and a server error, each with an email address in the message, the URL, a cookie and a form body.
   - The 7 envelopes held no email address, IP address, city, coordinates, cookie, body or query string, and the browser event carried `infer_ip: "never"`.
   - That run found that the server's `referer` header keeps the previous page's query string, so it's no longer kept.
+
+---
+
+# tripplanner-tyl: Next.js 16.4.4, so pages update after a Server Action in production builds
+
+**Bead:** `tripplanner-tyl` (P1, found in `2o5.6`). **Status (2026-11-04):** PR open for the founder to merge. The Bead stays open until it merges.
+
+## Goal
+
+On Next 16.2.4, a production build sometimes never updates the page after a Server Action that refreshes it. The server answers in well under a second, but the button stays on its pending label ("Sending…", "Pinning…", "Making link…") until a reload. 16.2.4 bundles React `19.3.0-canary-3f0b9e61-20260317`, whose client can lose the wake-up for that transition. 16.4.4 bundles `19.3.0-canary-278794d7-20261002`. A slower CPU hits it on small pages too, so testers' phones would.
+
+## Changed
+
+- **`next` and `eslint-config-next`:** 16.2.4 → 16.4.4. The lockfile moves `@next/env`, `@next/eslint-plugin-next` and the `@next/swc-*` binaries with them.
+- **`next.config.ts`:** `agentRules: false`. Since 16.3, `next dev` writes its own block into `AGENTS.md` whenever it detects a coding agent (Claude Code, Cursor, Codex and others), which would dirty the tree in every agent session.
+- **`AGENTS.md`:** the web-framework line points agents at the docs bundled with the installed version (`node_modules/next/dist/docs/`). That's what Next's block would have said.
+
+## Release notes (16.3, 16.4) against what this app uses
+
+- **`proxy.ts`:** same matcher source, still on the Node.js runtime. 16.4.4 compiles it to also match the `.rsc` and segment-prefetch forms of the same paths. Static assets stay excluded.
+- **Security headers and CSP:** identical in both builds on every route checked: `/`, sign-in, a redirect, a legal page, an icon, the manifest, `robots.txt`, a CSS file and a 404. Only the hashed font names in the preload `Link` header differ. The 16.3 and 16.4 CSP fixes are for nonce-based policies, and ours allows inline scripts.
+- **Server Actions:** 16.3 fixed a navigation that was reverted, or stuck forever, while a Server Action was in flight. Client-handled action redirects now answer 200 instead of 303. The e2e covers follow, sign-in, onboarding, create, edit and delete trip, and creating, replacing, turning off and joining by an invite link.
+- **`next/font/google`:** still self-hosted. Both builds have 19 `@font-face` rules and 16 `.woff2` files under `/_next/static/media`, so `font-src 'self'` holds.
+- **`@sentry/nextjs` 11.10.0:** its peer range is `^16.0.0-0`, and Sentry's own e2e apps ran on 16.4.1 and 16.4.2 by 11.9 and 11.10. The build with `withSentryConfig` passes with no warning.
+- **`next build`** now type-checks with the TypeScript CLI over everything `tsconfig.json` includes, e2e specs too. `pnpm typecheck` already does that in CI.
+
+## Evidence (2026-11-04)
+
+- **Checks** after merging `main` with PR #7: `pnpm typecheck`, `pnpm lint`, `pnpm test` (207 tests), `pnpm check:secrets`, `pnpm build` and `pnpm test:db` (13 files, 377 tests) pass.
+- **E2E on production builds, `main`'s two specs (smoke and invite-join):**
+  - Both versions were built from the same `main` (`645c915`) and served with `next start`, each batch starting from a fresh `supabase db reset`.
+  - The CPU was slowed with CDP `Emulation.setCPUThrottlingRate` on every page, the friend's and the stranger's phones too.
+  - No retries, and 15-second waits, so a slow step isn't mistaken for a hang. One test is one spec run.
+
+  | | Unthrottled | 4× | 6× | 10× | 20× |
+  | --- | --- | --- | --- | --- | --- |
+  | Next 16.4.4 | 10/10 | 20/20 | 20/20 | 20/20 | 40/40 |
+  | Next 16.2.4 | 10/10 | 20/20 | 20/20 | 19/20 | 39/40 |
+
+- **Both 16.2.4 failures are the hang,** on the organizer's invite panel:
+  - at 10×, "Create invite link" got a 200 in 69 ms (11 KB, `x-action-revalidated: 1`), and the button stayed on "Making link…";
+  - at 20×, "Turn off link" got a 200 in 139 ms (12 KB), and the button stayed on "Turning off…".
+- **The throttle held:** a fixed loop timed on the page at the end of each test took about 12 ms unthrottled, 50 ms at 4×, 75 ms at 6×, 125 ms at 10× and 250 ms at 20×, the same on both versions.
+- **No CSP violation, console error or page error** in any of the 200 throttled runs.
+- **`next dev` and `AGENTS.md`:** started from Claude Code (`CLAUDECODE=1`), it left `AGENTS.md` untouched. A copy without `agentRules: false` printed "Generated AGENTS.md for AI agents" and appended its block.
+- **CI's own command,** `CI=1 pnpm test:e2e`: 2 of 2 pass.
+- **PR #8's posts e2e (2026-11-03, on the Bead):** at 4× and 6×, 16.2.4 passed 1 of 6 and 16.4.4 passed 6 of 6.
+
+## Follow-ups
+
+- **Next 16.4.5 (2026-11-03)** is a security-only release. None of its seven advisories reaches this app today:
+  - four concern `'use cache'` and Cache Components, which aren't on;
+  - one concerns self-hosted apps that forward fetched responses, but UAT runs on Vercel and no route forwards one;
+  - one is an SVG check in image optimization, but the app has no `next/image` or remote patterns, and Vercel optimizes images itself;
+  - one concerns Edge runtime routes, and there are none: the proxy runs on Node.js.
+
+  It's still worth taking, as the same two version lines plus the lockfile.
+- **Two copies of `sharp`:** Next 16.4 brings `sharp` 0.35.5 as an optional dependency, next to the app's 0.34.5 for `lib/images.ts`, which no route uses yet. Moving the app to 0.35 would drop one copy, but it touches the EXIF-strip path, so it's a change of its own.
+- **Large-page coverage (from the Bead):** a seed trip with 25 or more notes, and an e2e that posts there, need PR #8's notes. #8's posts e2e can cover it once #8 is rebased onto this.
