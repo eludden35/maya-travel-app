@@ -119,12 +119,17 @@ export async function requireProfileFor(path: string): Promise<ProfileRow> {
 }
 
 /**
- * Whether the signed-in user's email may finish onboarding while Jettison is
- * invite-only (`private.onboarding_allowlist`).
+ * Whether the signed-in user may finish onboarding while Jettison is
+ * invite-only: their email is on `private.onboarding_allowlist`, or they hold
+ * a live trip invite (tripplanner-2o5.1).
  */
-export async function canCompleteOnboarding(): Promise<boolean> {
+export async function canCompleteOnboarding(
+  inviteToken: string | null = null,
+): Promise<boolean> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("can_complete_onboarding");
+  const { data, error } = await supabase.rpc("can_complete_onboarding", {
+    p_invite_token: inviteToken ?? undefined,
+  });
   if (error) {
     throw new DataAccessError("canCompleteOnboarding", error);
   }
@@ -136,13 +141,15 @@ export async function canCompleteOnboarding(): Promise<boolean> {
  * acceptance of `CURRENT_TOS_VERSION`, atomically, via `complete_onboarding`.
  * The RPC validates and rate-limits (`handle_create`); `ip` and `userAgent`
  * are the raw request header values and are masked here before they leave
- * the server.
+ * the server. With a live `inviteToken` the RPC also joins that trip in the
+ * same transaction, and lets in an email that isn't allow-listed.
  */
 export async function completeOnboarding(input: {
   handle: string;
   displayName: string;
   ip: string | null;
   userAgent: string | null;
+  inviteToken: string | null;
 }): Promise<CompleteOnboardingResult> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("complete_onboarding", {
@@ -151,6 +158,7 @@ export async function completeOnboarding(input: {
     p_tos_version: CURRENT_TOS_VERSION,
     p_ip: maskIp(input.ip) ?? undefined,
     p_user_agent: truncateUserAgent(input.userAgent) ?? undefined,
+    p_invite_token: input.inviteToken ?? undefined,
   });
 
   if (error) {

@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { readSignInEmail } from "@/lib/auth-flow";
+import { readInviteToken, readSignInEmail } from "@/lib/auth-flow";
 
 import { CodeForm, EmailForm } from "./sign-in-forms";
 
@@ -9,6 +9,10 @@ import { CodeForm, EmailForm } from "./sign-in-forms";
  * link, which goes through /auth/confirm). The address between steps lives
  * in an httpOnly cookie, so the URL only ever carries `step` and an enum
  * `error` code — never the address and never free-form text.
+ *
+ * While an invite link is being followed (tripplanner-2o5.1), the code step
+ * asks for the code rather than the emailed link: the invite lives in this
+ * browser, and the link may open in another app's.
  */
 export default async function SignInPage({
   searchParams,
@@ -18,6 +22,7 @@ export default async function SignInPage({
   const { step, error, next } = await searchParams;
   const email = step === "code" ? await readSignInEmail() : null;
   const showCode = email !== null;
+  const invitePending = showCode && (await readInviteToken()) !== null;
   const errorCopy = errorMessageFor(
     step === "code" && !showCode ? "code_expired" : error,
   );
@@ -37,7 +42,9 @@ export default async function SignInPage({
               <>
                 We sent a sign-in code to{" "}
                 <span className="font-mono text-ink">{maskEmail(email)}</span>.
-                Enter it below, or tap the link in the email.
+                {invitePending
+                  ? " Enter it here to carry on with your invite."
+                  : " Enter it below, or tap the link in the email."}
               </>
             ) : (
               "Enter your email and we’ll send you a sign-in code."

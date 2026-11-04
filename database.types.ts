@@ -471,6 +471,57 @@ export type Database = {
         }
         Relationships: []
       }
+      trip_invites: {
+        Row: {
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          max_uses: number
+          revoked_at: string | null
+          token: string
+          trip_id: string
+          uses: number
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          expires_at: string
+          id?: string
+          max_uses: number
+          revoked_at?: string | null
+          token: string
+          trip_id: string
+          uses?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          max_uses?: number
+          revoked_at?: string | null
+          token?: string
+          trip_id?: string
+          uses?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_invites_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_invites_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trip_members: {
         Row: {
           joined_at: string
@@ -563,11 +614,22 @@ export type Database = {
         Args: { p_ip?: string; p_user_agent?: string; p_version: string }
         Returns: string
       }
-      can_complete_onboarding: { Args: never; Returns: boolean }
+      accept_trip_invite: {
+        Args: { p_token: string }
+        Returns: {
+          status: string
+          trip_id: string
+        }[]
+      }
+      can_complete_onboarding: {
+        Args: { p_invite_token?: string }
+        Returns: boolean
+      }
       complete_onboarding: {
         Args: {
           p_display_name: string
           p_handle: string
+          p_invite_token?: string
           p_ip?: string
           p_tos_version: string
           p_user_agent?: string
@@ -603,6 +665,18 @@ export type Database = {
           trip_id: string
         }[]
       }
+      create_trip_invite: {
+        Args: {
+          p_expires_in_days: number
+          p_max_uses: number
+          p_trip_id: string
+        }
+        Returns: {
+          invite_id: string
+          status: string
+          token: string
+        }[]
+      }
       delete_expense: { Args: { p_expense_id: string }; Returns: string }
       delete_trip: { Args: { p_trip_id: string }; Returns: string }
       get_trip: {
@@ -626,6 +700,17 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_trip_invite_preview: {
+        Args: { p_token: string }
+        Returns: {
+          end_date: string
+          member_count: number
+          organizer_display_name: string
+          start_date: string
+          trip_id: string
+          trip_name: string
+        }[]
+      }
       get_trip_members: {
         Args: { p_trip_id: string }
         Returns: {
@@ -642,6 +727,7 @@ export type Database = {
         Args: { p_profile_id: string; p_trip_id: string }
         Returns: string
       }
+      revoke_trip_invite: { Args: { p_invite_id: string }; Returns: string }
       update_expense: {
         Args: {
           p_amount: number

@@ -27,7 +27,7 @@ select ok(
   'clients cannot insert ToS acceptances'
 );
 select ok(
-  not has_function_privilege('anon', 'public.complete_onboarding(text, text, text, text, text)', 'execute'),
+  not has_function_privilege('anon', 'public.complete_onboarding(text, text, text, text, text, text)', 'execute'),
   'anon cannot call complete_onboarding'
 );
 
