@@ -9,9 +9,16 @@ import {
   removeTripMemberAction,
 } from "@/app/_actions/trips-actions";
 import { ConfirmAction } from "@/app/trips/_components/confirm-action";
+import { InvitePanel, type PanelInvite } from "@/app/trips/_components/invite-panel";
 import { TripNotes, TripNotesSkeleton } from "@/app/trips/_components/trip-notes";
 import { requireProfileFor } from "@/lib/profiles";
 import { formatTripDates, formatTripLength } from "@/lib/trip-dates";
+import {
+  formatExpiresIn,
+  inviteLifetimeDays,
+  inviteLinkState,
+} from "@/lib/trip-invite-fields";
+import { getNewestTripInvite, inviteUrl, type TripInvite } from "@/lib/trip-invites";
 import { getTripById, getTripMembers, type TripVisibility } from "@/lib/trips";
 import { isUuid } from "@/lib/uuid";
 
@@ -65,6 +72,8 @@ export default async function TripPage({
   const members = await getTripMembers(trip.id);
   const isMember = members.some((m) => m.profile_id === profile.id);
   const isOrganizer = trip.organizer_id === profile.id;
+  // Only the organizer can read a trip's links (tripplanner-2o5.1).
+  const invite = isOrganizer ? await getNewestTripInvite(trip.id) : null;
   const length = formatTripLength(trip.start_date, trip.end_date);
   // "Show older notes" pages by the oldest note shown so far.
   const { before } = await searchParams;
@@ -106,6 +115,14 @@ export default async function TripPage({
             </Link>
           ) : null}
         </header>
+
+        {isOrganizer ? (
+          <InvitePanel
+            tripId={trip.id}
+            tripName={trip.name}
+            invite={invite ? toPanelInvite(invite, new Date()) : null}
+          />
+        ) : null}
 
         {trip.description ? (
           <section aria-label="About this trip" className="rounded-2xl bg-card p-5">
@@ -161,7 +178,7 @@ export default async function TripPage({
                       triggerAriaLabel={`Remove ${member.display_name}`}
                       triggerClassName="shrink-0 h-11 px-3 rounded-md border border-hairline bg-paper text-sm text-secondary hover:text-error"
                       title={`Remove ${member.display_name}?`}
-                      body={`${member.display_name} will stop seeing this trip. They can come back only with a new invite.`}
+                      body={`${member.display_name} will stop seeing this trip. If they still have the invite link, make a new one so they can't rejoin with it.`}
                       confirmLabel="Remove"
                       pendingLabel="Removing…"
                     />
@@ -221,6 +238,20 @@ export default async function TripPage({
       </div>
     </main>
   );
+}
+
+/** What the invite panel needs; the token only goes out while the link is live. */
+function toPanelInvite(invite: TripInvite, now: Date): PanelInvite {
+  const state = inviteLinkState(invite, now);
+  return {
+    id: invite.id,
+    state,
+    url: state === "live" ? inviteUrl(invite.token) : null,
+    expiresIn: formatExpiresIn(invite.expires_at, now),
+    uses: invite.uses,
+    maxUses: invite.max_uses,
+    lifetimeDays: inviteLifetimeDays(invite),
+  };
 }
 
 function initialOf(name: string): string {

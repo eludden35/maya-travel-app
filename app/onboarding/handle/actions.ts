@@ -3,7 +3,9 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { forgetInvite, readInviteToken } from "@/lib/auth-flow";
 import { completeOnboarding } from "@/lib/profiles";
+import { acceptTripInvite } from "@/lib/trip-invites";
 
 /**
  * Server Action wrapper for the onboarding form.
@@ -27,6 +29,12 @@ import { completeOnboarding } from "@/lib/profiles";
  * `?error=tos_required` without consuming a rate-limit slot. The masked IP
  * and truncated user-agent are computed in `lib/tos.ts`; we just hand over
  * the raw header values so the masking lives in one testable place.
+ *
+ * Invite links (tripplanner-2o5.1): the token comes from the invite cookie.
+ * A live one lets an email that isn't allow-listed onboard, and the RPC
+ * joins its trip in the same transaction. `acceptTripInvite` then returns
+ * that trip (it's safe to repeat), so the new member lands on it. When the
+ * link died on the way, /join says so.
  */
 export async function submitHandleAction(formData: FormData) {
   const handleRaw = formData.get("handle");
@@ -50,16 +58,27 @@ export async function submitHandleAction(formData: FormData) {
   // storage, so the raw value never reaches the DB.
   const ip = forwardedFor ? (forwardedFor.split(",")[0]?.trim() ?? null) : null;
   const userAgent = headerList.get("user-agent");
+  const inviteToken = await readInviteToken();
 
   const result = await completeOnboarding({
     handle,
     displayName,
     ip,
     userAgent,
+    inviteToken,
   });
 
   if (!result.ok && result.error !== "already_onboarded") {
     redirect(`/onboarding/handle?error=${result.error}`);
+  }
+
+  if (inviteToken) {
+    const joined = await acceptTripInvite(inviteToken);
+    if (joined.ok) {
+      await forgetInvite();
+      redirect(`/trips/${joined.tripId}`);
+    }
+    redirect("/join");
   }
 
   redirect("/");

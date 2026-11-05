@@ -65,7 +65,7 @@ Testers are invited only when every row is checked.
 | E1 | P0 and P1 review findings 1–8 closed | Each finding's Bead is closed and has a pgTAP test that failed before the fix |
 | E2 | CI green | The latest `main` run passes typecheck, lint, Vitest, `supabase test db` and the Playwright mobile smoke test |
 | E3 | pgTAP green, including the money-privacy matrix | `supabase test db` passes; the matrix shows non-members, followers and public-trip viewers get 0 rows from `expenses`, `expense_shares` and `settlements` on private, unlisted and public trips |
-| E4 | Sentry receives errors | A forced error on UAT appears in Sentry within 5 minutes with no email address or IP in the event |
+| E4 | Sentry receives errors | First, the founder sets two things in Sentry that code can't (`tripplanner-7pl`). In Project Settings → Security & Privacy, turn on **Prevent Storing of IP Addresses**, and under Advanced Data Scrubbing add `[Replace] [Email Addresses] from [$string]`; leave the data scrubber and default scrubbers on. Then a forced error on UAT appears in Sentry within 5 minutes with no email address or IP anywhere in the event: user, request URL and headers, breadcrumbs or exception message |
 | E5 | Email lands | A sign-in email reaches the inbox, not spam, at one Gmail, one iCloud and one Outlook address; SPF, DKIM and DMARC pass in the headers |
 | E6 | UAT data reset | Trips and profiles hold only the founder's account; `select id, handle from profiles where is_moderator` returns the expected list |
 | E7 | Allow-list loaded | Every invited tester's email is in `private.onboarding_allowlist`, with no `*` or public-domain entries such as `@gmail.com`; an unlisted email reaches the "invite-only" screen; a listed one typed with capitals is accepted |
@@ -118,8 +118,8 @@ Check IDs (for example `S5-N2`) are what defect reports cite. "Refused" means th
 |---|---|---|
 | 1 | From home, tap "Plan a trip" (`/trips/new`); enter a name, dates and currency; save | `/trips/[id]` lists ORG as organizer; the trip shows under "Your trips" |
 | 2 | Edit the name and dates | Changes show on the trip and on home |
-| 3 | Create an invite link and share it | The share sheet opens where the browser supports it; otherwise the link copies with a visible confirmation |
-| 4 | Revoke that link, then create a new one | The old link stops working (S3-N1); the new one works |
+| 3 | Create an invite link with the defaults and share it | The link works for a week and lets in 10 people (§12 Q6). The share sheet opens where the browser supports it; otherwise the link copies with a visible confirmation. Copy link copies the same link again at any time |
+| 4 | Turn that link off, then create a new one | The old link stops working (S3-N1); the new one works |
 | 5 | Create a throwaway trip and delete it | Asks to confirm; the trip leaves home; its URL shows "not found" |
 
 | Check | Expected result |
@@ -136,8 +136,8 @@ Check IDs (for example `S5-N2`) are what defect reports cite. "Refused" means th
 
 | # | Step | Expected result |
 |---|---|---|
-| 1 | Open the link while signed out | Preview: trip name, organizer's display name, dates, and a Join button |
-| 2 | Tap Join, sign in with a code, and finish onboarding | Allowed through the invite even though the email isn't allow-listed; after accepting, lands on `/trips/[id]` as a member |
+| 1 | Open the link while signed out | Preview: trip name, dates, organizer's display name, how many are going, and a Join button. The address bar shows `/join`, not the link's code |
+| 2 | Tap Join, sign in with a code, and finish onboarding | Allowed through the invite even though the email isn't allow-listed; finishing onboarding joins the trip and lands on `/trips/[id]` as a member |
 | 3 | ORG refreshes the trip | MEM appears in the member list |
 | 4 | A returning user, signed in, opens the link and joins | Lands on the trip without onboarding again |
 | 5 | MEM opens the same link again | Goes to the trip; no duplicate membership |
@@ -147,7 +147,9 @@ Check IDs (for example `S5-N2`) are what defect reports cite. "Refused" means th
 | S3-N1 A revoked, used-up or mistyped token | A plain "this invite no longer works" message and no trip details |
 | S3-N2 (ADM) A token past its expiry (set a short expiry, or backdate it) | Same as S3-N1 |
 | S3-N3 Preview page | Never shows amounts, balances, expenses, posts or member emails |
-| S3-N4 MEM looks for organizer controls | No edit, delete, remove-member or invite-management controls |
+| S3-N4 MEM looks for organizer controls | No edit, delete, remove-member or invite-management controls, and the link itself isn't shown |
+| S3-N5 Someone who blocked, or was blocked by, the organizer or any member opens a live link while signed in | The S3-N1 message; nothing reveals the block (§12 Q9) |
+| S3-N6 Open the preview, then expire, fill or turn off the link (ADM), then tap Join while signed in | Refused, saying why (expired, full or turned off) and to ask for a new link |
 
 ### S4. Expenses: equal and exact splits, edit, delete
 
@@ -242,7 +244,7 @@ Check IDs (for example `S5-N2`) are what defect reports cite. "Refused" means th
 | 3 | C marks the $34.00 to A as paid, then leaves | Asks to confirm; C leaves; the trip disappears from C's home |
 | 4 | C reloads the trip URL | "Not found" |
 | 5 | A removes D (balance $0.00) | D loses access; other balances don't change |
-| 6 | A rotates the invite link; D tries the old one | The S3-N1 message |
+| 6 | A makes a new invite link (New link); D tries the old one | The S3-N1 message |
 
 | Check | Expected result |
 |---|---|
@@ -281,7 +283,7 @@ Run as OUT-anon, OUT-signed-in and OUT-follower at the end of S5, and again at t
 | Check | Where | Expected result |
 |---|---|---|
 | PV1 | `/trips/[id]` | Sign-in for OUT-anon; "not found" for everyone else |
-| PV2 | `/join/[token]` with a live link | Preview only (name, organizer, dates); no money or posts |
+| PV2 | `/join/[token]` with a live link | Preview only (name, dates, organizer, how many are going); no money, posts or member names |
 | PV3 | The organizer's and members' `/[handle]` | No private trips, amounts or posts |
 | PV4 | Their own home | Nothing about the trip, not even a $0.00 total |
 | PV5 | The trip URL pasted into iMessage or WhatsApp | The link preview shows no amounts, balances or post text |
@@ -374,5 +376,12 @@ Gaps in the Phase 2 spec that change what a scenario expects. Answer each in its
 5. What happens to a shared trip when one member blocks another?
    - **Answered 2026-11-02 (founder, `tripplanner-718`):** Both stay members. Inside the trip each still sees the other's name, costs and posts, so the shared ledger reads correctly. Outside the trip the block works as usual: no profile view, no follow, no DMs. Either one can leave once settled, or the organizer can remove one of them.
 6. What are the default invite expiry and maximum uses?
+   - **Answered 2026-11-03 (founder, `tripplanner-2o5.1`):** A link works for a week and lets in 10 people unless the organizer picks otherwise: 1, 3, 7, 14 or 30 days, and 1, 5, 10, 25 or 50 people. Nothing is unlimited while Jettison is invite-only, because each use also lets one new account past the allow-list. A trip has one live link: a new link turns the old one off. Removing a member doesn't turn the link off, so the remove dialog says to make a new one if they still have it.
 7. Who can edit a trip?
    - **Answered 2026-11-02 (founder, `tripplanner-718`):** The organizer only: name, dates and description. The currency is fixed when the trip is created. Only the organizer can delete the trip or remove members; any member can leave.
+8. Can the organizer copy an invite link again after making it?
+   - **Answered 2026-11-03 (founder, `tripplanner-2o5.1`):** Yes. The link is stored so that only the trip's organizer can read it; members, other users and signed-out visitors can't. A leaked link is turned off or replaced.
+9. Can someone join when they and someone in the trip have blocked each other?
+   - **Answered 2026-11-03 (founder, `tripplanner-2o5.1`):** No, whichever way the block goes and whoever in the trip it involves, organizer included. They see the same "this invite no longer works" as for a dead link, so the block isn't revealed. People already in a trip together both stay (Q5). Known limit: the preview also works signed out (S3 step 1), so someone who compares the signed-out and signed-in pages can tell the link works for others; either way it shows only the four preview fields.
+10. Who can make invite links?
+    - **Answered 2026-11-03 (founder, `tripplanner-2o5.1`):** Only the organizer. Members see neither the link nor the controls.

@@ -26,6 +26,9 @@ import { createClient } from "@/lib/supabase/server";
  * `TRIP_WRITE` inside the trip RPCs (tripplanner-718). `IMAGES_UPLOAD` is
  * charged by `uploadPendingImage`. The rest are reserved — call sites land
  * in tripplanner-s3a.25.
+ *
+ * `TRIP_INVITE` and `TRIP_JOIN` are charged inside the invite RPCs
+ * (tripplanner-2o5.1).
  */
 export const RATE_LIMITS = {
   HANDLE_CREATE: { surface: "handle_create" },
@@ -47,6 +50,8 @@ export const RATE_LIMITS = {
   // Charged inside create_expense, update_expense and delete_expense
   // (tripplanner-2o5.2).
   EXPENSE_WRITE: { surface: "expense_write" },
+  TRIP_INVITE: { surface: "trip_invite" },
+  TRIP_JOIN: { surface: "trip_join" },
 } as const;
 
 export type RateLimitSpec = {
