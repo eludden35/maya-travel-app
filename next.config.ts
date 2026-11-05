@@ -55,6 +55,10 @@ if (process.env.ALLOW_INDEXING !== "true") {
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Since 16.3, `next dev` writes its own block into AGENTS.md whenever a
+  // coding agent starts it, which dirties the tree in every agent session.
+  // AGENTS.md is written by hand here and points at the bundled docs itself.
+  agentRules: false,
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
