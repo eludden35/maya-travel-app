@@ -97,6 +97,22 @@ export async function getNewestTripInvite(
 }
 
 /**
+ * Can links the signed-in user makes let new accounts in? Only while their
+ * own email is on the allow-list (tripplanner-x6a): otherwise their links
+ * still work for people who already have an account, and for allow-listed
+ * newcomers. Answers only about the caller.
+ */
+export async function canInviteNewAccounts(): Promise<boolean> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("can_invite_new_accounts");
+
+  if (error) {
+    throw new DataAccessError("canInviteNewAccounts", error);
+  }
+  return data === true;
+}
+
+/**
  * What a link invites to, through the `get_trip_invite_preview` RPC, for
  * anyone holding it, signed in or not. `null` for every link that isn't
  * working, whatever the reason, and when the viewer and someone in the trip
