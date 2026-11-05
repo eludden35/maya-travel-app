@@ -558,3 +558,38 @@ Then run E4 on UAT.
   - A browser error and a server error, each with an email address in the message, the URL, a cookie and a form body.
   - The 7 envelopes held no email address, IP address, city, coordinates, cookie, body or query string, and the browser event carried `infer_ip: "never"`.
   - That run found that the server's `referer` header keeps the previous page's query string, so it's no longer kept.
+
+---
+
+# tripplanner-x6a: only links made by allow-listed accounts let new accounts in
+
+**Bead:** `tripplanner-x6a` (P2 decision; epic `tripplanner-2o5`). **Test plan:** §12 Q11 and S3-N7 in [`docs/uat/uat-1-test-plan.md`](../docs/uat/uat-1-test-plan.md). **Status (2026-11-05):** built and verified locally; PR to follow.
+
+## Founder decision (2026-11-05)
+
+"Allow-listed links only." A live link lets someone whose email isn't on the allow-list finish onboarding only when the account that made it (`trip_invites.created_by`) has an allow-listed email: a full email, its @domain or `*`. The check runs each time the link is used, so allow-list edits apply to existing links at once. No new column.
+
+Unchanged:
+
+- An allow-listed email onboards with or without a link.
+- A live link still joins its trip during onboarding, whoever made it, so an allow-listed newcomer holding a link from an organizer who isn't allow-listed still joins.
+- Someone who already has a profile joins through `accept_trip_invite`, whoever made the link.
+- A refused attempt writes nothing: no profile, ToS row, membership or use, and no rate-limit charge.
+
+## Design
+
+- **Migration** `20261105120000_invite_links_from_allowlisted.sql`, after PR #8's `20261103210000`:
+  - `private.account_is_allowlisted(uuid)`: an account's `auth.users` email through `private.email_is_allowlisted`; revoked from `public`, `anon` and `authenticated`;
+  - `can_complete_onboarding(text)` and `complete_onboarding(text ×6)` replaced in place, with the same signatures and statuses. The new refusal comes before every write and before the rate-limit charge;
+  - `can_invite_new_accounts()`: no argument, so it answers only about the caller; `authenticated` and `service_role` only.
+- **Onboarding** (`app/onboarding/handle/page.tsx`): when onboarding is refused, a live link (the preview answers) gets "This link can't add new accounts" with what to do: ask the founder to add their email, then open the link again. Dead links and no link keep their answers.
+- **Organizer panel** (`invite-panel.tsx`): "Your links only work for people who already have an account." when `can_invite_new_accounts()` is false. The trip page asks only for the organizer.
+
+## Plan
+
+- [x] Branch from `main` at `645c915`.
+- [x] Migration: the helper, the two replaced functions and `can_invite_new_accounts`.
+- [x] pgTAP `014-invite-chaining.test.sql`: the six cases the review asked for.
+- [x] `canInviteNewAccounts` in `lib/trip-invites.ts`, the trip page, the panel line and the onboarding screen.
+- [x] `database.types.ts`, test plan §12 Q11 and S3-N7.
+- [ ] Proof, then PR, CI green, and a note on the Bead.
