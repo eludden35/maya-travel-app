@@ -558,3 +558,62 @@ Then run E4 on UAT.
   - A browser error and a server error, each with an email address in the message, the URL, a cookie and a form body.
   - The 7 envelopes held no email address, IP address, city, coordinates, cookie, body or query string, and the browser event carried `infer_ip: "never"`.
   - That run found that the server's `referer` header keeps the previous page's query string, so it's no longer kept.
+
+---
+
+# tripplanner-x6a: only links made by allow-listed accounts let new accounts in
+
+**Bead:** `tripplanner-x6a` (P2 decision; epic `tripplanner-2o5`). **Test plan:** §12 Q11 and S3-N7 in [`docs/uat/uat-1-test-plan.md`](../docs/uat/uat-1-test-plan.md). **Status (2026-11-05):** built and verified locally; the PR is open for the founder to merge, and the Bead stays open until then.
+
+## Founder decision (2026-11-05)
+
+"Allow-listed links only." A live link lets someone whose email isn't on the allow-list finish onboarding only when the account that made it (`trip_invites.created_by`) has an allow-listed email: a full email, its @domain or `*`. The check runs each time the link is used, so allow-list edits apply to existing links at once. No new column.
+
+Unchanged:
+
+- An allow-listed email onboards with or without a link.
+- A live link still joins its trip during onboarding, whoever made it, so an allow-listed newcomer holding a link from an organizer who isn't allow-listed still joins.
+- Someone who already has a profile joins through `accept_trip_invite`, whoever made the link.
+- A refused attempt writes nothing: no profile, ToS row, membership or use, and no rate-limit charge.
+
+## Design
+
+- **Migration** `20261105120000_invite_links_from_allowlisted.sql`, after PR #8's `20261103210000`:
+  - `private.account_is_allowlisted(uuid)`: an account's `auth.users` email through `private.email_is_allowlisted`; revoked from `public`, `anon` and `authenticated`;
+  - `can_complete_onboarding(text)` and `complete_onboarding(text ×6)` replaced in place, with the same signatures and statuses. The new refusal comes before every write and before the rate-limit charge;
+  - `can_invite_new_accounts()`: no argument, so it answers only about the caller; `authenticated` and `service_role` only.
+- **Onboarding** (`app/onboarding/handle/page.tsx`): when onboarding is refused, a live link (the preview answers) gets "This link can't add new accounts" with what to do: ask the founder to add their email, then open the link again. Dead links and no link keep their answers.
+- **Organizer panel** (`invite-panel.tsx`): "Your links only work for people who already have an account." when `can_invite_new_accounts()` is false. The trip page asks only for the organizer.
+
+## Plan
+
+- [x] Branch from `main` at `645c915`.
+- [x] Migration: the helper, the two replaced functions and `can_invite_new_accounts`.
+- [x] pgTAP `014-invite-chaining.test.sql`: the six cases the review asked for.
+- [x] `canInviteNewAccounts` in `lib/trip-invites.ts`, the trip page, the panel line and the onboarding screen.
+- [x] `database.types.ts`, test plan §12 Q11 and S3-N7.
+- [x] Proof (see Review), then the PR and a note on the Bead.
+- [ ] CI green and the founder merges; then close the Bead.
+
+## Review
+
+### Evidence (2026-11-05, local stack, after `supabase db reset`)
+
+- **`supabase test db`: 14 files, 408 tests.** `014-invite-chaining` adds 31; `011-trip-invites` passes unchanged.
+- **Deliberate regressions fail the new tests,** each run in a rolled-back transaction:
+  - the creator check left out of `complete_onboarding` fails 11;
+  - the creator check left out of `can_complete_onboarding` fails 2;
+  - charging the rate limit before the refusal fails the "writes nothing" check.
+- **Other checks:** `pnpm test` (207), `pnpm typecheck`, `pnpm lint`, `pnpm check:secrets` and `pnpm build` are clean.
+- **Types:** generated from the reset database, they match `database.types.ts`, including the new `can_invite_new_accounts` line, apart from the PostgrestVersion block and the generator's parentheses.
+- **`pnpm test:e2e` on the production build:** both specs pass, unchanged. `invite-join`'s friend (`@example.org`, not listed) still onboards through the organizer's link: the organizer is `@example.com`, which the seed lists.
+- **A one-off Playwright run on the production build** (not committed):
+  - an allow-listed organizer's link lets a friend in, and the friend makes a trip and a link of their own;
+  - the friend's panel shows the new line, with no link and with a live one;
+  - a newcomer who isn't listed, opening the friend's link, gets "This link can't add new accounts." with their email;
+  - someone who already has an account joins with the friend's link;
+  - at 375px and 360px nothing scrolls sideways, and "Use a different email" is 48px tall.
+
+### Notes
+
+- **Copy:** the newcomer is told to ask Jettison's founder, not "the person who invited you", because only the founder edits the allow-list. The panel line follows the founder's wording. Allow-listed newcomers can still use these links, but saying so would add a second line.

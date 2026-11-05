@@ -625,6 +625,7 @@ export type Database = {
         Args: { p_invite_token?: string }
         Returns: boolean
       }
+      can_invite_new_accounts: { Args: never; Returns: boolean }
       complete_onboarding: {
         Args: {
           p_display_name: string

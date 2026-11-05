@@ -48,15 +48,22 @@ const LAST_LINK_COPY: Record<Exclude<InviteLinkState, "live">, string> = {
  *
  * Only the organizer gets this panel, and only the organizer can read the
  * link (RLS), so nobody else's page ever holds the token.
+ *
+ * `admitsNewAccounts` is false when the organizer's own email isn't on the
+ * allow-list (tripplanner-x6a). Their links then let in only people who
+ * already have an account (and allow-listed newcomers), and the panel says
+ * so in one line.
  */
 export function InvitePanel({
   tripId,
   tripName,
   invite,
+  admitsNewAccounts,
 }: {
   tripId: string;
   tripName: string;
   invite: PanelInvite | null;
+  admitsNewAccounts: boolean;
 }) {
   const headingId = useId();
 
@@ -68,6 +75,11 @@ export function InvitePanel({
       >
         Invite people
       </h2>
+      {admitsNewAccounts ? null : (
+        <p className="text-sm text-secondary">
+          Your links only work for people who already have an account.
+        </p>
+      )}
       {invite?.state === "live" && invite.url ? (
         <LiveInvite
           key={invite.id}
