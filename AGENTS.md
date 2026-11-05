@@ -30,7 +30,7 @@ Single entry point for humans and AI agents working in this repo.
 Locked in [`docs/adr/0001-framework-choice.md`](docs/adr/0001-framework-choice.md):
 
 - **Backend:** Supabase — Auth, Postgres, **Row-Level Security (RLS)**.
-- **Web framework:** **Next.js 16 App Router** (TypeScript, strict).
+- **Web framework:** **Next.js 16 App Router** (TypeScript, strict). Docs for the installed version ship in `node_modules/next/dist/docs/`. Check an API there before you use it, since it may have changed since your training data. `agentRules: false` in [`next.config.ts`](next.config.ts) stops `next dev` from writing its own block into this file.
 - **Server-side auth:** **`@supabase/ssr`** + `@supabase/supabase-js`. Cookie-based sessions; [`proxy.ts`](proxy.ts) (Next.js 16 — formerly `middleware.ts`) refreshes on every request. See [`lib/supabase/{server,client,middleware}.ts`](lib/supabase/).
 - **Styling + tokens:** **Tailwind CSS v4** with the `@theme` block in [`app/globals.css`](app/globals.css) as the single source of truth for design tokens (warm palette, type ramp, spacing scale).
 - **Type system:** Fraunces (display) + Inter (text) + JetBrains Mono (money tables only) — loaded via `next/font/google` in [`app/layout.tsx`](app/layout.tsx).

@@ -710,3 +710,123 @@ Then run E4 on UAT.
   - A browser error and a server error, each with an email address in the message, the URL, a cookie and a form body.
   - The 7 envelopes held no email address, IP address, city, coordinates, cookie, body or query string, and the browser event carried `infer_ip: "never"`.
   - That run found that the server's `referer` header keeps the previous page's query string, so it's no longer kept.
+
+---
+
+# tripplanner-x6a: only links made by allow-listed accounts let new accounts in
+
+**Bead:** `tripplanner-x6a` (P2 decision; epic `tripplanner-2o5`). **Test plan:** §12 Q11 and S3-N7 in [`docs/uat/uat-1-test-plan.md`](../docs/uat/uat-1-test-plan.md). **Status (2026-11-05):** built and verified locally; the PR is open for the founder to merge, and the Bead stays open until then.
+
+## Founder decision (2026-11-05)
+
+"Allow-listed links only." A live link lets someone whose email isn't on the allow-list finish onboarding only when the account that made it (`trip_invites.created_by`) has an allow-listed email: a full email, its @domain or `*`. The check runs each time the link is used, so allow-list edits apply to existing links at once. No new column.
+
+Unchanged:
+
+- An allow-listed email onboards with or without a link.
+- A live link still joins its trip during onboarding, whoever made it, so an allow-listed newcomer holding a link from an organizer who isn't allow-listed still joins.
+- Someone who already has a profile joins through `accept_trip_invite`, whoever made the link.
+- A refused attempt writes nothing: no profile, ToS row, membership or use, and no rate-limit charge.
+
+## Design
+
+- **Migration** `20261105120000_invite_links_from_allowlisted.sql`, after PR #8's `20261103210000`:
+  - `private.account_is_allowlisted(uuid)`: an account's `auth.users` email through `private.email_is_allowlisted`; revoked from `public`, `anon` and `authenticated`;
+  - `can_complete_onboarding(text)` and `complete_onboarding(text ×6)` replaced in place, with the same signatures and statuses. The new refusal comes before every write and before the rate-limit charge;
+  - `can_invite_new_accounts()`: no argument, so it answers only about the caller; `authenticated` and `service_role` only.
+- **Onboarding** (`app/onboarding/handle/page.tsx`): when onboarding is refused, a live link (the preview answers) gets "This link can't add new accounts" with what to do: ask the founder to add their email, then open the link again. Dead links and no link keep their answers.
+- **Organizer panel** (`invite-panel.tsx`): "Your links only work for people who already have an account." when `can_invite_new_accounts()` is false. The trip page asks only for the organizer.
+
+## Plan
+
+- [x] Branch from `main` at `645c915`.
+- [x] Migration: the helper, the two replaced functions and `can_invite_new_accounts`.
+- [x] pgTAP `014-invite-chaining.test.sql`: the six cases the review asked for.
+- [x] `canInviteNewAccounts` in `lib/trip-invites.ts`, the trip page, the panel line and the onboarding screen.
+- [x] `database.types.ts`, test plan §12 Q11 and S3-N7.
+- [x] Proof (see Review), then the PR and a note on the Bead.
+- [ ] CI green and the founder merges; then close the Bead.
+
+## Review
+
+### Evidence (2026-11-05, local stack, after `supabase db reset`)
+
+- **`supabase test db`: 14 files, 408 tests.** `014-invite-chaining` adds 31; `011-trip-invites` passes unchanged.
+- **Deliberate regressions fail the new tests,** each run in a rolled-back transaction:
+  - the creator check left out of `complete_onboarding` fails 11;
+  - the creator check left out of `can_complete_onboarding` fails 2;
+  - charging the rate limit before the refusal fails the "writes nothing" check.
+- **Other checks:** `pnpm test` (207), `pnpm typecheck`, `pnpm lint`, `pnpm check:secrets` and `pnpm build` are clean.
+- **Types:** generated from the reset database, they match `database.types.ts`, including the new `can_invite_new_accounts` line, apart from the PostgrestVersion block and the generator's parentheses.
+- **`pnpm test:e2e` on the production build:** both specs pass, unchanged. `invite-join`'s friend (`@example.org`, not listed) still onboards through the organizer's link: the organizer is `@example.com`, which the seed lists.
+- **A one-off Playwright run on the production build** (not committed):
+  - an allow-listed organizer's link lets a friend in, and the friend makes a trip and a link of their own;
+  - the friend's panel shows the new line, with no link and with a live one;
+  - a newcomer who isn't listed, opening the friend's link, gets "This link can't add new accounts." with their email;
+  - someone who already has an account joins with the friend's link;
+  - at 375px and 360px nothing scrolls sideways, and "Use a different email" is 48px tall.
+
+### Notes
+
+- **Copy:** the newcomer is told to ask Jettison's founder, not "the person who invited you", because only the founder edits the allow-list. The panel line follows the founder's wording. Allow-listed newcomers can still use these links, but saying so would add a second line.
+
+---
+
+# tripplanner-tyl: Next.js 16.4.5, so pages update after a Server Action in production builds
+
+**Bead:** `tripplanner-tyl` (P1, found in `2o5.6`). **Status (2026-11-05):** [PR #9](https://github.com/eludden35/maya-travel-app/pull/9) open for the founder to merge. The Bead stays open until it merges.
+
+## Goal
+
+On Next 16.2.4, a production build sometimes never updates the page after a Server Action that refreshes it. The server answers in well under a second, but the button stays on its pending label ("Sending…", "Pinning…", "Making link…") until a reload. 16.2.4 bundles React `19.3.0-canary-3f0b9e61-20260317`, whose client can lose the wake-up for that transition. 16.4.4 and 16.4.5 bundle `19.3.0-canary-278794d7-20261002`. A slower CPU hits it on small pages too, so testers' phones would.
+
+## Changed
+
+- **`next` and `eslint-config-next`:** 16.2.4 → 16.4.5. The lockfile moves `@next/env`, `@next/eslint-plugin-next` and the `@next/swc-*` binaries with them.
+  - The proof was first run on 16.4.4.
+  - 16.4.5 (2026-11-03) is 16.4.4 plus seven security fixes. None of them reaches this app today:
+    - four are for `'use cache'`, which isn't on;
+    - one is for route handlers that forward a fetched body;
+    - one is for image optimization, and the app has no `next/image`;
+    - one is for Edge routes, and there are none.
+  - Of the files 16.4.5 changes, the page runtime only changes Vercel's minimal mode for placeholder params, and the proxy adapter's cookie change skips the proxy.
+- **`next.config.ts`:** `agentRules: false`. Since 16.3, `next dev` writes its own block into `AGENTS.md` whenever it detects a coding agent (Claude Code, Cursor, Codex and others), which would dirty the tree in every agent session.
+- **`AGENTS.md`:** the web-framework line points agents at the docs bundled with the installed version (`node_modules/next/dist/docs/`). That's what Next's block would have said.
+
+## Release notes (16.3, 16.4) against what this app uses
+
+- **`proxy.ts`:** same matcher source, still on the Node.js runtime. 16.4.4 compiles it to also match the `.rsc` and segment-prefetch forms of the same paths. Static assets stay excluded.
+- **Security headers and CSP:** identical in the 16.2.4, 16.4.4 and 16.4.5 builds on every route checked: `/`, sign-in, a redirect, a legal page, an icon, the manifest, `robots.txt`, a CSS file and a 404. Only the hashed font names in the preload `Link` header differ. The 16.3 and 16.4 CSP fixes are for nonce-based policies, and ours allows inline scripts.
+- **Server Actions:** 16.3 fixed a navigation that was reverted, or stuck forever, while a Server Action was in flight. Client-handled action redirects now answer 200 instead of 303. The e2e covers follow, sign-in, onboarding, create, edit and delete trip, and creating, replacing, turning off and joining by an invite link.
+- **`next/font/google`:** still self-hosted. Both builds have 19 `@font-face` rules and 16 `.woff2` files under `/_next/static/media`, so `font-src 'self'` holds.
+- **`@sentry/nextjs` 11.10.0:** its peer range is `^16.0.0-0`, and Sentry's own e2e apps ran on 16.4.1 and 16.4.2 by 11.9 and 11.10. The build with `withSentryConfig` passes with no warning.
+- **`next build`** now type-checks with the TypeScript CLI over everything `tsconfig.json` includes, e2e specs too. `pnpm typecheck` already does that in CI.
+
+## Evidence (2026-11-04 and 2026-11-05)
+
+- **Checks** after merging `main` with PR #7, on 16.4.4 and again on 16.4.5: `pnpm typecheck`, `pnpm lint`, `pnpm test` (207 tests), `pnpm check:secrets`, `pnpm build` and `pnpm test:db` (13 files, 377 tests) pass.
+- **CI on PR #9 with 16.4.4:** every job passed, including pgTAP, e2e and the Vercel preview.
+- **E2E on production builds, `main`'s two specs (smoke and invite-join):**
+  - Every version was built from the same `main` (`645c915`) and served with `next start`, each batch starting from a fresh `supabase db reset`.
+  - The CPU was slowed with CDP `Emulation.setCPUThrottlingRate` on every page, the friend's and the stranger's phones too.
+  - No retries, and 15-second waits, so a slow step isn't mistaken for a hang. One test is one spec run.
+
+  | | Unthrottled | 4× | 6× | 10× | 20× |
+  | --- | --- | --- | --- | --- | --- |
+  | Next 16.4.5 | 10/10 | 20/20 | 20/20 | 20/20 | 40/40 |
+  | Next 16.4.4 | 10/10 | 20/20 | 20/20 | 20/20 | 40/40 |
+  | Next 16.2.4 | 10/10 | 20/20 | 20/20 | 19/20 | 39/40 |
+
+- **Both 16.2.4 failures are the hang,** on the organizer's invite panel:
+  - at 10×, "Create invite link" got a 200 in 69 ms (11 KB, `x-action-revalidated: 1`), and the button stayed on "Making link…";
+  - at 20×, "Turn off link" got a 200 in 139 ms (12 KB), and the button stayed on "Turning off…".
+- **The throttle held:** a fixed loop timed on the page at the end of each test took about 12 ms unthrottled, 50 ms at 4×, 75 ms at 6×, 125 ms at 10× and 250 ms at 20×, the same on every version.
+- **No CSP violation, console error or page error** in any of the 300 throttled runs.
+- **`next dev` and `AGENTS.md`:** started from Claude Code (`CLAUDECODE=1`), it left `AGENTS.md` untouched. A copy without `agentRules: false` printed "Generated AGENTS.md for AI agents" and appended its block.
+- **CI's own command,** `CI=1 pnpm test:e2e`: 2 of 2 pass on 16.4.4 and on 16.4.5.
+- **PR #8's posts e2e (2026-11-03, on the Bead):** at 4× and 6×, 16.2.4 passed 1 of 6 and 16.4.4 passed 6 of 6.
+
+## Follow-ups
+
+- **Two copies of `sharp`:** Next 16.4 brings `sharp` 0.35.5 as an optional dependency, next to the app's 0.34.5 for `lib/images.ts`, which no route uses yet. Moving the app to 0.35 would drop one copy, but it touches the EXIF-strip path, so it's a change of its own.
+- **Large-page coverage (from the Bead):** a seed trip with 25 or more notes, and an e2e that posts there, need PR #8's notes. #8's posts e2e can cover it once #8 is rebased onto this.

@@ -18,7 +18,12 @@ import {
   inviteLifetimeDays,
   inviteLinkState,
 } from "@/lib/trip-invite-fields";
-import { getNewestTripInvite, inviteUrl, type TripInvite } from "@/lib/trip-invites";
+import {
+  canInviteNewAccounts,
+  getNewestTripInvite,
+  inviteUrl,
+  type TripInvite,
+} from "@/lib/trip-invites";
 import { getTripById, getTripMembers, type TripVisibility } from "@/lib/trips";
 import { isUuid } from "@/lib/uuid";
 
@@ -72,8 +77,11 @@ export default async function TripPage({
   const members = await getTripMembers(trip.id);
   const isMember = members.some((m) => m.profile_id === profile.id);
   const isOrganizer = trip.organizer_id === profile.id;
-  // Only the organizer can read a trip's links (tripplanner-2o5.1).
-  const invite = isOrganizer ? await getNewestTripInvite(trip.id) : null;
+  // Only the organizer can read a trip's links (tripplanner-2o5.1), and only
+  // links from an allow-listed organizer let new accounts in (tripplanner-x6a).
+  const [invite, admitsNewAccounts] = isOrganizer
+    ? await Promise.all([getNewestTripInvite(trip.id), canInviteNewAccounts()])
+    : [null, true];
   const length = formatTripLength(trip.start_date, trip.end_date);
   // "Show older notes" pages by the oldest note shown so far.
   const { before } = await searchParams;
@@ -121,6 +129,7 @@ export default async function TripPage({
             tripId={trip.id}
             tripName={trip.name}
             invite={invite ? toPanelInvite(invite, new Date()) : null}
+            admitsNewAccounts={admitsNewAccounts}
           />
         ) : null}
 

@@ -23,7 +23,9 @@ import { HandleForm } from "./handle-form";
  *  - Not signed in -> redirect to /auth/sign-in.
  *  - Signed in AND profile already exists -> redirect to /.
  *  - Signed in, no profile, email not on the invite-only allow-list and no
- *    live trip invite -> render the invite-only screen instead of the form.
+ *    live trip invite that lets new accounts in -> render the invite-only
+ *    screen instead of the form. A live link only lets new accounts in when
+ *    the account that made it is allow-listed (tripplanner-x6a).
  *  - Signed in AND no profile -> render this page. Arriving from an invite
  *    link (tripplanner-2o5.1), the page names the trip they're joining, and
  *    finishing onboarding joins it in the same step.
@@ -51,8 +53,14 @@ export default async function OnboardingHandlePage({
 
   const inviteToken = await readInviteToken();
   if (!(await canCompleteOnboarding(inviteToken))) {
+    // The preview answers only for a live link. A live link that still can't
+    // get them in was made by someone who isn't allow-listed.
+    const liveInvite = inviteToken ? await getTripInvitePreview(inviteToken) : null;
     return (
-      <InviteOnly email={user.email ?? null} inviteFailed={inviteToken !== null} />
+      <InviteOnly
+        email={user.email ?? null}
+        link={inviteToken === null ? "none" : liveInvite ? "no_new_accounts" : "dead"}
+      />
     );
   }
   const invitation = inviteToken ? await getTripInvitePreview(inviteToken) : null;
@@ -157,17 +165,67 @@ function errorFieldFor(code: string | undefined): "handle" | "display_name" | nu
 
 /**
  * Shown instead of the form while Jettison is invite-only, the signed-in
- * email is not on `private.onboarding_allowlist` and there's no live trip
- * invite. The account exists (it was created by the sign-in email) but has
- * no profile, so it can see nothing. `inviteFailed`: they came from an invite
- * link that stopped working on the way.
+ * email is not on `private.onboarding_allowlist` and no live trip invite
+ * lets them in. The account exists (it was created by the sign-in email) but
+ * has no profile, so it can see nothing. `link`:
+ *  - "none": they didn't come from an invite link;
+ *  - "dead": the link stopped working on the way;
+ *  - "no_new_accounts": the link works, but only for people who already have
+ *    an account, because whoever made it isn't on the allow-list
+ *    (tripplanner-x6a). Only the founder edits the list, so that's who to ask.
  */
 function InviteOnly({
   email,
-  inviteFailed,
+  link,
 }: {
   email: string | null;
-  inviteFailed: boolean;
+  link: "none" | "dead" | "no_new_accounts";
+}) {
+  if (link === "no_new_accounts") {
+    return (
+      <InviteOnlyScreen heading="This link can’t add new accounts.">
+        Jettison is invite-only while we test, and this link only works for
+        people who already have an account. Ask Jettison’s founder to add{" "}
+        {email ? (
+          <span className="font-mono text-ink break-all">{email}</span>
+        ) : (
+          "your email"
+        )}
+        , then open the link again.
+      </InviteOnlyScreen>
+    );
+  }
+
+  const inviteFailed = link === "dead";
+  return (
+    <InviteOnlyScreen
+      heading={
+        inviteFailed ? "This invite no longer works." : "Jettison is invite-only for now."
+      }
+    >
+      {inviteFailed
+        ? "Ask whoever sent it for a new link."
+        : "We’re testing with a small group of friends. Got a trip invite link? Open it on this device to carry on."}
+      {email ? (
+        <>
+          {" "}
+          Or ask the person who invited you to add{" "}
+          <span className="font-mono text-ink break-all">{email}</span>,
+          then sign in again.
+        </>
+      ) : (
+        <> Or ask the person who invited you to add your email.</>
+      )}
+    </InviteOnlyScreen>
+  );
+}
+
+function InviteOnlyScreen({
+  heading,
+  children,
+}: {
+  heading: string;
+  children: React.ReactNode;
 }) {
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-6 py-12 bg-paper text-ink">
@@ -176,26 +234,8 @@ function InviteOnly({
           <p className="font-mono text-xs uppercase tracking-[0.2em] text-secondary">
             Jettison
           </p>
-          <h1 className="font-display text-3xl leading-tight">
-            {inviteFailed
-              ? "This invite no longer works."
-              : "Jettison is invite-only for now."}
-          </h1>
-          <p className="text-secondary text-sm">
-            {inviteFailed
-              ? "Ask whoever sent it for a new link."
-              : "We’re testing with a small group of friends. Got a trip invite link? Open it on this device to carry on."}
-            {email ? (
-              <>
-                {" "}
-                Or ask the person who invited you to add{" "}
-                <span className="font-mono text-ink break-all">{email}</span>,
-                then sign in again.
-              </>
-            ) : (
-              <> Or ask the person who invited you to add your email.</>
-            )}
-          </p>
+          <h1 className="font-display text-3xl leading-tight">{heading}</h1>
+          <p className="text-secondary text-sm">{children}</p>
         </header>
 
         <form action="/auth/sign-out" method="post">
