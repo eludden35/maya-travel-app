@@ -563,7 +563,7 @@ Then run E4 on UAT.
 
 # tripplanner-x6a: only links made by allow-listed accounts let new accounts in
 
-**Bead:** `tripplanner-x6a` (P2 decision; epic `tripplanner-2o5`). **Test plan:** §12 Q11 and S3-N7 in [`docs/uat/uat-1-test-plan.md`](../docs/uat/uat-1-test-plan.md). **Status (2026-11-05):** built and verified locally; PR to follow.
+**Bead:** `tripplanner-x6a` (P2 decision; epic `tripplanner-2o5`). **Test plan:** §12 Q11 and S3-N7 in [`docs/uat/uat-1-test-plan.md`](../docs/uat/uat-1-test-plan.md). **Status (2026-11-05):** built and verified locally; the PR is open for the founder to merge, and the Bead stays open until then.
 
 ## Founder decision (2026-11-05)
 
@@ -592,4 +592,28 @@ Unchanged:
 - [x] pgTAP `014-invite-chaining.test.sql`: the six cases the review asked for.
 - [x] `canInviteNewAccounts` in `lib/trip-invites.ts`, the trip page, the panel line and the onboarding screen.
 - [x] `database.types.ts`, test plan §12 Q11 and S3-N7.
-- [ ] Proof, then PR, CI green, and a note on the Bead.
+- [x] Proof (see Review), then the PR and a note on the Bead.
+- [ ] CI green and the founder merges; then close the Bead.
+
+## Review
+
+### Evidence (2026-11-05, local stack, after `supabase db reset`)
+
+- **`supabase test db`: 14 files, 408 tests.** `014-invite-chaining` adds 31; `011-trip-invites` passes unchanged.
+- **Deliberate regressions fail the new tests,** each run in a rolled-back transaction:
+  - the creator check left out of `complete_onboarding` fails 11;
+  - the creator check left out of `can_complete_onboarding` fails 2;
+  - charging the rate limit before the refusal fails the "writes nothing" check.
+- **Other checks:** `pnpm test` (207), `pnpm typecheck`, `pnpm lint`, `pnpm check:secrets` and `pnpm build` are clean.
+- **Types:** generated from the reset database, they match `database.types.ts`, including the new `can_invite_new_accounts` line, apart from the PostgrestVersion block and the generator's parentheses.
+- **`pnpm test:e2e` on the production build:** both specs pass, unchanged. `invite-join`'s friend (`@example.org`, not listed) still onboards through the organizer's link: the organizer is `@example.com`, which the seed lists.
+- **A one-off Playwright run on the production build** (not committed):
+  - an allow-listed organizer's link lets a friend in, and the friend makes a trip and a link of their own;
+  - the friend's panel shows the new line, with no link and with a live one;
+  - a newcomer who isn't listed, opening the friend's link, gets "This link can't add new accounts." with their email;
+  - someone who already has an account joins with the friend's link;
+  - at 375px and 360px nothing scrolls sideways, and "Use a different email" is 48px tall.
+
+### Notes
+
+- **Copy:** the newcomer is told to ask Jettison's founder, not "the person who invited you", because only the founder edits the allow-list. The panel line follows the founder's wording. Allow-listed newcomers can still use these links, but saying so would add a second line.
