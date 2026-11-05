@@ -121,3 +121,17 @@ Skim this file at session start when the upcoming task touches an area you have 
   - [`.cursor/skills/project-supabase/SKILL.md`](../.cursor/skills/project-supabase/SKILL.md): the local-stack workflow, the pgTAP step and new gotchas. It also gets the promotions the 2026-04-19 and 2026-04-20 lessons promised: migration immutability, the `storage.objects` comment limit and the gen-types stderr leak.
   - [`.cursor/skills/project-orchestration/SKILL.md`](../.cursor/skills/project-orchestration/SKILL.md): pre-allocate shared mutable files.
   - CI's `database` job runs the suite on every PR.
+
+## 2026-11-03 — Prove a list feature on a production build with a realistic amount of data
+
+- **Context:** `tripplanner-2o5.6`, trip notes. The S6 e2e passed against `pnpm dev` and against the production build, with the two seed notes.
+- **Mistake:** That was nearly the proof. With about 15 or more notes, a production build hangs after "Pin to trip": the note is saved, but the button stays on "Pinning…". Hours went into ruling out app code (Sentry, Suspense, prefetch, the keyed composer) before trying a newer framework.
+- **Correction:** The evidence pointed at the framework.
+  - The React canary inside Next 16.2.4 splits Flight rows over 3,200 bytes into lazy chunks, and the transition that renders them can lose its wake-up.
+  - Raising that threshold in a throwaway build, or upgrading to Next 16.4.4, removes the hang.
+  - React's root showed it: `pendingLanes` and `suspendedLanes` held the transition lane, with `pingedLanes` 0 and no callback. A hook on `WeakMap.prototype.set` listed every promise React waited on, and all had resolved.
+- **Generalization:**
+  - (a) An e2e that adds to a server-rendered list runs against a production build with dozens of rows, not just the seed.
+  - (b) When something hangs only in production, try the latest patch of the framework in a throwaway build early, before bisecting app code.
+  - (c) JSX drops whitespace that contains a line break. Text after `{name}` that starts on the next line loses its space ("Bob Okaforwon't"), so use a template literal or `{" "}`, and assert whole sentences in e2e.
+- **Followed up by:** `tripplanner-tyl` (upgrade Next, plus a seed trip with many notes and an e2e that posts there); test plan S6-N9.

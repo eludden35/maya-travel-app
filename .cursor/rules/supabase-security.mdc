@@ -73,7 +73,7 @@ create policy "images_select_approved_or_owner_or_mod" on images
 
 The full state-machine + storage-tier sketch lives in [`.cursor/skills/project-architecture/SKILL.md`](../skills/project-architecture/SKILL.md) → "Image upload + pre-moderation pipeline".
 
-**The CSAM scan and the manual moderator queue UI are P0 gates — Posts cannot ship before both close.** AI auto-classification, when it ships, is a top-of-funnel filter that raises throughput; **it never replaces the human review floor.** Any future relaxation of these requires an ADR superseding 0002.
+**The CSAM scan and the manual moderator queue UI are P0 gates — photo posts cannot ship before both close.** Text-only trip notes (tripplanner-2o5.6) carry no images, so they shipped behind the Report control and the founder's reports page. AI auto-classification, when it ships, is a top-of-funnel filter that raises throughput; **it never replaces the human review floor.** Any future relaxation of these requires an ADR superseding 0002.
 
 ## API keys
 
