@@ -33,7 +33,7 @@ UAT-1 answers one question: can a real group run a trip's shared costs in Jettis
 | Item | UAT-1 setting |
 |---|---|
 | URL | `https://uat.<domain>` (placeholder until the domain is bought), backed by the existing hosted Supabase project. Not indexed (`noindex`, `robots.txt`). |
-| Access | Invite-only. Onboarding completes only for an allow-listed email or a valid trip invite link; anyone else sees the "invite-only" screen. Testers must be 18 or older (the Terms require it and onboarding asks). |
+| Access | Invite-only. Onboarding completes only for an allow-listed email, or with a valid trip invite link made by an allow-listed account (§12 Q11); anyone else sees the "invite-only" screen. Testers must be 18 or older (the Terms require it and onboarding asks). |
 | Test-build notice | On the sign-in screen and at the top of the Terms (version bumped for UAT), using the copy in section 10. |
 | Data reset | Reset once before testers arrive. No resets during the round except to recover from a P0 data problem, announced in the tester group chat at least 24 hours ahead when possible. At exit the founder decides whether UAT-1 data is wiped or carried into UAT-2, and tells testers either way. |
 | Money | No real money moves through Jettison. Testers settle with each other however they normally would, then mark the debt as paid. The app never asks for card or bank details. |
@@ -150,6 +150,7 @@ Check IDs (for example `S5-N2`) are what defect reports cite. "Refused" means th
 | S3-N4 MEM looks for organizer controls | No edit, delete, remove-member or invite-management controls, and the link itself isn't shown |
 | S3-N5 Someone who blocked, or was blocked by, the organizer or any member opens a live link while signed in | The S3-N1 message; nothing reveals the block (§12 Q9) |
 | S3-N6 Open the preview, then expire, fill or turn off the link (ADM), then tap Join while signed in | Refused, saying why (expired, full or turned off) and to ask for a new link |
+| S3-N7 MEM, now an organizer, makes a link for their own trip; a new user who isn't allow-listed opens it, signs in and reaches onboarding | "This link can't add new accounts", telling them to ask the founder to add their email; no profile is created. MEM's invite panel says their links only work for people who already have an account. A returning user can still join with the link (§12 Q11) |
 
 ### S4. Expenses: equal and exact splits, edit, delete
 
@@ -371,3 +372,9 @@ Gaps in the Phase 2 spec that change what a scenario expects. Answer each in its
    - **Answered 2026-11-03 (founder, `tripplanner-2o5.1`):** No, whichever way the block goes and whoever in the trip it involves, organizer included. They see the same "this invite no longer works" as for a dead link, so the block isn't revealed. People already in a trip together both stay (Q5). Known limit: the preview also works signed out (S3 step 1), so someone who compares the signed-out and signed-in pages can tell the link works for others; either way it shows only the four preview fields.
 10. Who can make invite links?
     - **Answered 2026-11-03 (founder, `tripplanner-2o5.1`):** Only the organizer. Members see neither the link nor the controls.
+11. Can someone who got in through an invite link bring in new accounts with links of their own?
+    - **Answered 2026-11-05 (founder, `tripplanner-x6a`): "Allow-listed links only."** A live link lets someone whose email isn't on the allow-list finish onboarding only if the account that made the link is allow-listed: a full email, its @domain or `*`.
+      - The check runs each time the link is used, so an allow-list edit applies to existing links at once.
+      - A link from anyone else still works for people who already have an account, and for newcomers who are on the list themselves; it joins its trip either way.
+      - Anyone else sees "This link can't add new accounts" and is told to ask the founder to add their email. The organizer's invite panel says their links only work for people who already have an account.
+      - S3-N7 checks it.
