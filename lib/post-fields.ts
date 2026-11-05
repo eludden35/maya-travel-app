@@ -4,7 +4,7 @@
  * `server-only` imports (Bead tripplanner-2o5.6).
  *
  * The database is the authority: the RPCs in
- * `supabase/migrations/20261103210000_trip_posts_and_reports.sql` clean up
+ * `supabase/migrations/20261105201232_trip_posts_and_reports.sql` clean up
  * line breaks, trim, validate and answer with a status. The limits and
  * reasons here mirror them so a form can say so up front;
  * `lib/post-fields.test.ts` fails when the two drift apart.

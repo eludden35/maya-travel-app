@@ -5,9 +5,11 @@
 -- Sign in at http://localhost:3000/auth/sign-in. The code arrives in Mailpit
 -- at http://127.0.0.1:54324.
 --
---   alice@example.com  onboarded; organizes "Lisbon long weekend" (private)
---                      and "Joshua Tree climbing" (public)
---   bob@example.com    onboarded; member of the Lisbon trip; follows alice
+--   alice@example.com  onboarded; organizes "Lisbon long weekend" (private),
+--                      "Joshua Tree climbing" (public) and "Amalfi coast
+--                      reunion" (private, 26 trip notes)
+--   bob@example.com    onboarded; member of the Lisbon and Amalfi trips;
+--                      follows alice
 --   carol@example.com  signed up but not onboarded, to try onboarding
 --   founder@example.com  onboarded moderator in no trip; reviews reports at
 --                        /admin/reports (set at the end of this file)
@@ -99,3 +101,34 @@ values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '22222222-2222-4222-8222-222222222222',
    'Landing at 11:40 on Friday. Anyone up for pastéis straight from the airport?',
    now() - interval '1 day');
+
+-- tripplanner-2o5.6: a busy trip, so the end-to-end tests keep a large page
+-- under test. On Next 16.2.4 a production build never finished updating a
+-- page this size after a Server Action (tripplanner-tyl).
+insert into public.trips (id, organizer_id, name, description, start_date, end_date, visibility)
+values
+  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', '11111111-1111-4111-8111-111111111111',
+   'Amalfi coast reunion', 'Ten of us, one villa, far too many lemons.',
+   '2027-06-10', '2027-06-17', 'private');
+
+insert into public.trip_members (trip_id, profile_id, role)
+values ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', '22222222-2222-4222-8222-222222222222', 'member');
+
+-- 26 notes, newest first five hours apart, alternating between Alice and Bob.
+insert into public.trip_posts (trip_id, author_id, body, created_at)
+select
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  case when n % 2 = 0 then '11111111-1111-4111-8111-111111111111'::uuid
+       else '22222222-2222-4222-8222-222222222222'::uuid end,
+  format('Note %s: %s', n, (array[
+    'The ferry to Positano leaves at 9:10; the 11:40 is always full.',
+    'Who has the villa gate code? Asking for the airport shuttle.',
+    E'Dinner Saturday at Da Adolfo.\nThe boat picks us up at the pier at 7.',
+    'Bring reef shoes. The beach below the villa is all pebbles.',
+    'Lemon tasting in Minori: 10 places, Thursday morning.',
+    'Path of the Gods walk: about 3 hours, start before the heat.',
+    'Ravello concert tickets are 25 each; reply if you want one.',
+    'Rental scooters need a licence photo uploaded by Friday.'
+  ])[1 + (n - 1) % 8]),
+  now() - make_interval(hours => n * 5)
+from generate_series(1, 26) as n;

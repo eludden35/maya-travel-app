@@ -3,8 +3,10 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 import { signIn } from "./support/sign-in";
 
 // Seed data (supabase/seed.sql): Alice organizes the Lisbon trip, Bob is in
-// it, and the founder is a moderator in no trip.
+// it, and the founder is a moderator in no trip. Bob is also in Alice's
+// Amalfi trip, which has 26 notes.
 const LISBON = "/trips/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const AMALFI = "/trips/cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
 /** A signed-in page in its own browser context, recording any JS dialog. */
 async function personaPage(browser: Browser, email: string, dialogs: string[]) {
@@ -92,6 +94,34 @@ test("UAT-1 S6: a member posts, another reports it, and the founder takes it dow
   await expect(alice.getByText(suffix)).toHaveCount(0);
 
   // Only its author can delete it.
+  await bobsNote.getByRole("button", { name: "Delete your note" }).click();
+  await bob
+    .getByRole("dialog", { name: "Delete this note?" })
+    .getByRole("button", { name: "Delete note" })
+    .click();
+  await expect(bob.getByText(suffix)).toHaveCount(0);
+
+  expect(dialogs).toEqual([]);
+});
+
+// S6-N9: a page this size once never updated after pinning or deleting in a
+// production build (Next 16.2.4, tripplanner-tyl), while small pages did.
+test("S6-N9: a member pins and deletes a note on a trip with 26 notes", async ({ browser }) => {
+  test.setTimeout(60_000);
+  const suffix = Date.now().toString(36);
+  const text = `Amalfi plan ${suffix}`;
+  const dialogs: string[] = [];
+
+  const bob = await personaPage(browser, "bob@example.com", dialogs);
+  await bob.goto(AMALFI);
+  await expect(bob.getByRole("article").nth(25)).toBeVisible();
+
+  await bob.getByLabel("Write a trip note").fill(text);
+  await bob.getByRole("button", { name: "Pin to trip" }).click();
+  const bobsNote = noteFrom(bob, "Bob Okafor", suffix);
+  await expect(bobsNote.getByText(text, { exact: true })).toBeVisible();
+  await expect(bob.getByLabel("Write a trip note")).toHaveValue("");
+
   await bobsNote.getByRole("button", { name: "Delete your note" }).click();
   await bob
     .getByRole("dialog", { name: "Delete this note?" })

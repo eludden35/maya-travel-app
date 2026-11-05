@@ -29,7 +29,7 @@ Defaults I'll use unless the founder objects:
 ## Design
 
 - **Writes are RPC-only,** as in `tripplanner-718`. Each RPC is security definer with `search_path = ''`, takes identity from `auth.uid()`, validates before `consume_rate_limit`, returns a status instead of raising, and revokes `public, anon`. Clients get SELECT only. The AC's "INSERT only for trip members" is checked inside `create_trip_post`, so a direct API call can't skip the rate limit.
-- **One migration,** `supabase/migrations/20261103…_trip_posts_and_reports.sql`, with RLS in the same file:
+- **One migration,** `supabase/migrations/20261105201232_trip_posts_and_reports.sql`, with RLS in the same file:
   - `trip_posts`: `trip_id` references trips **on delete cascade**; `author_id` references profiles on delete cascade; `body` of 1 to 2,000 characters, not blank; `created_at`; `taken_down_at` and `taken_down_by` (D2). The SELECT policy is `private.is_trip_member(trip_id)` and either not taken down or yours. It never reads `trips.visibility` or `follows`. Indexed on `(trip_id, created_at desc, id desc)`.
   - `reports`: `reporter_id`; `target_type` (an enum, `trip_post` for now, which `s3a.15` extends); `target_id` with no foreign key, so a report outlives its post; `trip_id` and `target_author_id` (on delete set null); the copied text; `reason`; `note`; `status` (`open`, `resolved` or `dismissed`); `decided_by`, `decided_at` and `decision_note`. One per reporter and target. The SELECT policy is the reporter or `public.is_moderator(auth.uid())`. Clients can't write.
   - Rate-limit rules: `post` becomes 10 an hour; new `post_daily` (30 a day) and `report` (10 an hour).
@@ -55,7 +55,7 @@ Defaults I'll use unless the founder objects:
 
 ## Plan
 
-- [x] Migration `20261103210000_trip_posts_and_reports.sql`: tables, RLS, grants, RPCs and rate-limit rules.
+- [x] Migration `20261105201232_trip_posts_and_reports.sql`: tables, RLS, grants, RPCs and rate-limit rules.
 - [x] pgTAP `012-trip-posts.test.sql` and `013-reports.test.sql` (cases under Verification). The siblings both use `011`.
 - [x] Regenerate `database.types.ts` locally and splice in only the new hunks (`project-supabase` note).
 - [x] Library code:
@@ -66,11 +66,12 @@ Defaults I'll use unless the founder objects:
   - `lib/rpc-result.ts` (and its test): the RPC status helpers, byte for byte the file in `tripplanner-2o5.2`'s branch, so both merges add the same file. `lib/trips.ts` keeps its own copy, unchanged.
 - [x] Actions: `app/_actions/trip-posts-actions.ts` and `app/_actions/reports-actions.ts`.
 - [x] UI: the notes section, composer, report dialog and delete; `/admin/reports`; the home link.
-- [x] Seed: a moderator, `founder@example.com`, who isn't in any trip, and two sample notes in the Lisbon trip.
+- [x] Seed: a moderator, `founder@example.com`, who isn't in any trip, and two sample notes in the Lisbon trip. Later, Alice's "Amalfi coast reunion" with Bob and 26 notes, so e2e keeps a large page under test.
 - [x] Playwright `e2e/posts.spec.ts` (S6):
   - Bob posts a note containing `<b>hi</b> <script>alert(1)</script>`; it shows as text and no dialog opens.
   - Alice reports it. The founder takes it down with a note.
   - Bob sees it marked; Alice no longer sees it; Alice gets "Nothing here." on `/admin/reports`.
+  - S6-N9: Bob pins a note on the 26-note Amalfi trip, then deletes it, so the trip stays at 26.
   - Sign-in reads codes with `e2e/support/mailpit.ts`, the same file as in `tripplanner-2o5.1`'s branch, which `e2e/smoke.spec.ts` now imports. `signIn` in `e2e/support/sign-in.ts` deletes the persona's older emails first, because the seed accounts get a new code every run.
 - [x] Test plan: answer §12 Q1 (post half); in S6, the route and the decisions; in S6-N5, the limits; in PV6, add `reports`; in §9, the daily reports check. Reword the posts gate sentence in the security rule.
 - [x] Beads:
@@ -102,7 +103,7 @@ Defaults I'll use unless the founder objects:
 
 ### Shipped
 
-- **Migration** `20261103210000_trip_posts_and_reports.sql`. It was `…160000` until the expenses branch took that timestamp; it now sorts after every migration on `main` and in the sibling branches. It adds:
+- **Migration** `20261105201232_trip_posts_and_reports.sql`. It started as `…20261103160000`, which the expenses branch also used, then became `…20261103210000`. It was re-dated again after #10's `20261105120000` merged, because CI's `supabase db push` refuses a migration older than UAT's newest. It adds:
   - `trip_posts` and `reports` with their RLS, three enums, and two `private` helpers for multi-line text;
   - the RPCs `create_trip_post`, `delete_trip_post`, `get_trip_posts`, `report_trip_post`, `list_reports` and `decide_report`;
   - the rate-limit rules `post` (now 10 an hour), `post_daily` (30 a day) and `report` (10 an hour).
@@ -111,7 +112,7 @@ Defaults I'll use unless the founder objects:
   - On `/trips/[id]`, "Trip notes": the composer, the note cards, the delete and report dialogs, and paging to older notes.
   - `/admin/reports`, with the open reports and the last 20 decisions.
   - The moderator-only "Reports · N open" link on home.
-- **Seed:** `founder@example.com`, a moderator in no trip, and two Lisbon notes.
+- **Seed:** `founder@example.com`, a moderator in no trip; two Lisbon notes; and Alice's "Amalfi coast reunion" (`cccccccc-…`) with Bob and 26 notes.
 
 ### Evidence (2026-11-03, local stack, Next 16.2.4)
 
@@ -119,6 +120,12 @@ Defaults I'll use unless the founder objects:
 - `pnpm test`: 181 tests. 14 are new in `post-fields` and `post-time`; the 4 in `rpc-result` come with the shared file.
 - `pnpm typecheck`, `pnpm lint` and `pnpm check:secrets` are clean. `supabase db lint` finds no errors. `pnpm build` succeeds.
 - `pnpm test:e2e` (the smoke test and S6) passes against `pnpm dev` and against the production build.
+- **After syncing with `main` at `9afcb3b`** (#9's Next 16.4.5 and #10's invite chaining), on 2026-11-05:
+  - `pnpm test:db`: 16 files, 517 tests.
+  - `pnpm test`: 221 tests.
+  - `pnpm typecheck`, `pnpm lint` and `pnpm check:secrets` are clean, and the generated types match `database.types.ts`.
+  - `pnpm test:e2e` against the production build: smoke, invites, S6 and S6-N9 pass, 3 runs out of 3.
+  - S6-N9 on a temporary Next 16.2.4 install fails: the pinned note never appears, though it's saved.
 - A throwaway Playwright script at 360px:
   - a 450-character note with no spaces and a long URL wraps inside its card, with no sideways scroll;
   - the trip page, both dialogs and `/admin/reports` have no tap target under 44px;
@@ -139,8 +146,8 @@ Defaults I'll use unless the founder objects:
 - **Production builds hang on Next 16.2.4 (`tripplanner-tyl`, P1).** "Pin to trip" saves the note, but the button stays on "Pinning…" and the note shows only after a reload. Reporting sticks on "Sending…" the same way, and so does any action that revalidates the page, Remove member included. On this machine it takes about 15 notes; on CI's slower runner it takes 2.
   - **Cause:** the React canary inside Next 16.2.4 splits Flight rows over 3,200 bytes into lazy chunks, and the transition that renders them loses its wake-up.
   - **Ruled out:** Sentry, the Suspense boundary, link prefetch and the keyed composer.
-  - **Fix:** Next 16.4.4 passes the posts e2e 3 of 3 with 25 notes, where 16.2.4 fails 3 of 3.
-  - **CI hits it too.** In run 41685685082 on `5fe9d3a`, the report hung with 2 notes, and the retry's post hung with 3. The server answered both in under 260 ms, and the browser logged no errors. A slower CPU makes it likelier, so phones in UAT will hit it. Upgrade before UAT invites go out; test plan S6-N9 checks it by hand.
+  - **Fix:** Next 16.4.4 passes the posts e2e 3 of 3 with 25 notes, where 16.2.4 fails 3 of 3. PR #9 moved `main` to 16.4.5 on 2026-11-05, and S6-N9 now covers a 26-note page in CI.
+  - **CI hits it too.** In run 41685685082 on `5fe9d3a`, the report hung with 2 notes, and the retry's post hung with 3. The server answered both in under 260 ms, and the browser logged no errors. A slower CPU makes it likelier, so phones on 16.2.4 would hit it too. Test plan S6-N9 still checks it by hand.
 - **Sentry:** note bodies and report notes are Server Action posts, so their text reaches Sentry request bodies until `tripplanner-7pl` lands.
 - **Merging with the sibling branches.** Small conflicts are expected. Keep both sides, and regenerate the types the `project-supabase` way:
   - `app/trips/[id]/page.tsx`: both this branch and `2o5.1` add an import after `confirm-action`;
@@ -730,7 +737,7 @@ Unchanged:
 
 ## Design
 
-- **Migration** `20261105120000_invite_links_from_allowlisted.sql`, after PR #8's `20261103210000`:
+- **Migration** `20261105120000_invite_links_from_allowlisted.sql`. PR #8's migration was later re-dated to `20261105201232`, so it now runs after this one:
   - `private.account_is_allowlisted(uuid)`: an account's `auth.users` email through `private.email_is_allowlisted`; revoked from `public`, `anon` and `authenticated`;
   - `can_complete_onboarding(text)` and `complete_onboarding(text ×6)` replaced in place, with the same signatures and statuses. The new refusal comes before every write and before the rate-limit charge;
   - `can_invite_new_accounts()`: no argument, so it answers only about the caller; `authenticated` and `service_role` only.

@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/server";
  * (Bead tripplanner-2o5.6).
  *
  * Every read and write goes through an RPC in
- * `supabase/migrations/20261103210000_trip_posts_and_reports.sql`. A trip's
+ * `supabase/migrations/20261105201232_trip_posts_and_reports.sql`. A trip's
  * posts are for its members only, whatever the trip's visibility; clients
  * have no INSERT, UPDATE or DELETE on `trip_posts` or `reports`. Each write
  * RPC checks who is calling, validates, charges its rate limit (`post` and
