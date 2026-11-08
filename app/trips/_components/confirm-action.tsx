@@ -69,6 +69,17 @@ export function ConfirmAction({
               {state.error}
             </p>
           ) : null}
+          {/* A balance refused this: send them to where it gets settled. The
+              link is outside the modal's reach until the dialog closes. */}
+          {state.error && state.settle ? (
+            <a
+              href="#settle-up"
+              onClick={() => dialogRef.current?.close()}
+              className="flex h-12 items-center justify-center rounded-md bg-ink font-medium text-paper hover:opacity-90"
+            >
+              Go to Settle up
+            </a>
+          ) : null}
           <div className="flex flex-col gap-3 pt-2">
             <button
               type="button"

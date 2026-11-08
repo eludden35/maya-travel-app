@@ -41,6 +41,39 @@
   --spacing-6: 1.5rem;
   --spacing-8: 2rem;
   --spacing-12: 3rem;
+
+  /* Motion — money mode: a sheet slides up, a stamp lands. No bounce. */
+  --animate-sheet-up: sheet-up 250ms ease-out;
+  --animate-stamp: stamp 180ms ease-out;
+
+  @keyframes sheet-up {
+    from {
+      transform: translateY(1.5rem);
+      opacity: 0;
+    }
+  }
+
+  @keyframes stamp {
+    from {
+      transform: rotate(-6deg) scale(1.25);
+      opacity: 0;
+    }
+  }
+}
+
+/*
+ * The receipt motif (money mode; see product-engineering.md -> "Layout
+ * motifs"): the card's bottom edge is cut in a row of small scallops, like
+ * paper torn off a till.
+ */
+@utility receipt-edge {
+  --scallop: 6px;
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
+  mask:
+    radial-gradient(circle var(--scallop) at 50% 100%, transparent 96%, black)
+      bottom / calc(var(--scallop) * 2.5) var(--scallop) repeat-x,
+    linear-gradient(black 0 0) top / 100% calc(100% - var(--scallop)) no-repeat;
 }
 
 /*
