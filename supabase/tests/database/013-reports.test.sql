@@ -4,7 +4,7 @@
 -- but its author and resolves every open report on it; dismissing leaves the
 -- post up (founder decision, 2026-11-03). Reports keep a copy of the text.
 begin;
-select plan(56);
+select plan(60);
 
 select tests.create_user('alice');   -- organizer
 select tests.create_user('bob');     -- member; wrote the posts
@@ -162,19 +162,19 @@ select is(
 -- Only the reporter and moderators read a report
 -- ----------------------------------------------------------------------------
 
-select is_empty($$ select * from public.reports $$, 'the organizer cannot read reports');
+select is_empty($$ select id from public.reports $$, 'the organizer cannot read reports');
 
 reset role;
 select tests.authenticate_as('bob');
-select is_empty($$ select * from public.reports $$, 'the reported author cannot read reports about them');
+select is_empty($$ select id from public.reports $$, 'the reported author cannot read reports about them');
 
 reset role;
 select tests.authenticate_as('erin');
-select is_empty($$ select * from public.reports $$, 'another member cannot read reports');
+select is_empty($$ select id from public.reports $$, 'another member cannot read reports');
 
 reset role;
 select tests.authenticate_as('dave');
-select is_empty($$ select * from public.reports $$, 'a stranger cannot read reports');
+select is_empty($$ select id from public.reports $$, 'a stranger cannot read reports');
 
 reset role;
 select tests.authenticate_as_anon();
@@ -253,6 +253,31 @@ select results_eq(
             ('resolved', tests.id('mona'), true, 'Took it down.') $$,
   'both reports record who decided, when, the outcome and the note'
 );
+
+select tests.authenticate_as('carol');
+select is(
+  (select status::text from public.reports where id = tests.id('carol report')),
+  'resolved',
+  'the reporter can see their report was resolved'
+);
+select throws_ok(
+  $$ select decision_note from public.reports $$,
+  '42501', null,
+  'the reporter cannot read the moderator''s note'
+);
+select throws_ok(
+  $$ select decided_by from public.reports $$,
+  '42501', null,
+  'the reporter cannot read which moderator decided'
+);
+select throws_ok(
+  $$ select * from public.reports $$,
+  '42501', null,
+  'select * is refused, so no client reads the decision columns by accident'
+);
+
+reset role;
+select tests.clear_auth();
 
 select tests.authenticate_as('alice');
 select is_empty(

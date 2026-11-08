@@ -53,7 +53,7 @@ export async function countOpenReports(): Promise<number> {
   const supabase = await createClient();
   const { count, error } = await supabase
     .from("reports")
-    .select("*", { count: "exact", head: true })
+    .select("id", { count: "exact", head: true })
     .eq("status", "open");
 
   if (error) {
