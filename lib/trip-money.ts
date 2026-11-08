@@ -114,11 +114,10 @@ export function viewerStanding(
   viewerId: string,
   expenseCount: number,
 ): Standing {
-  if (expenseCount === 0) {
-    return { kind: "empty" };
-  }
+  // A payment can outlive the costs it paid for, so no costs isn't "empty"
+  // unless the balances say so too.
   if (balances.every((balance) => balance.amount === 0)) {
-    return { kind: "settled" };
+    return { kind: expenseCount === 0 ? "empty" : "settled" };
   }
   const amount =
     balances.find((balance) => balance.memberId === viewerId)?.amount ?? 0;

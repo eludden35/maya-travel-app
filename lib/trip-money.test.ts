@@ -93,6 +93,33 @@ describe("viewerStanding", () => {
     });
   });
 
+  it("isn't empty when a payment outlives the costs it paid for", () => {
+    const afterDelete = [
+      { memberId: A, amount: -1400 },
+      { memberId: B, amount: 1400 },
+    ];
+    expect(
+      viewerStanding(afterDelete, [{ from: A, to: B, amount: 1400 }], A, 0),
+    ).toEqual({ kind: "owes", amount: 1400, counterparts: [B] });
+    expect(
+      viewerStanding(afterDelete, [{ from: A, to: B, amount: 1400 }], B, 0),
+    ).toEqual({ kind: "owed", amount: 1400, counterparts: [A] });
+  });
+
+  it("is empty when voided payments leave no costs and no balances", () => {
+    expect(
+      viewerStanding(
+        [
+          { memberId: A, amount: 0 },
+          { memberId: B, amount: 0 },
+        ],
+        [],
+        A,
+        0,
+      ),
+    ).toEqual({ kind: "empty" });
+  });
+
   it("says what the viewer is owed and by whom (S5 step 1)", () => {
     expect(viewerStanding(balances, transfers, A, 3)).toEqual({
       kind: "owed",

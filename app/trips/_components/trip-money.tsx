@@ -121,7 +121,7 @@ export async function TripMoney({
         />
       </div>
 
-      {expenses.length > 0 ? (
+      {expenses.length > 0 || balances.some((balance) => balance.amount !== 0) ? (
         <Block id="balances" title="Balances">
           <BalanceList balances={balances} people={people} currency={currency} />
         </Block>
