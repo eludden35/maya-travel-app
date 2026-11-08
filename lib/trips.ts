@@ -237,6 +237,26 @@ export async function getTripMembers(
 }
 
 /**
+ * People who left a trip but still appear on its ledger, for the money screens
+ * (Bead tripplanner-2o5.5). Returns `[]` unless the viewer is a member, even on
+ * a public trip. Names only, no amounts.
+ */
+export async function getTripFormerMembers(
+  tripId: string,
+): Promise<{ profile_id: string; display_name: string }[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.rpc("get_trip_former_members", {
+    p_trip_id: tripId,
+  });
+
+  if (error) {
+    throw new DataAccessError("getTripFormerMembers", error);
+  }
+  return data ?? [];
+}
+
+/**
  * Membership existence check. Used by future modules (e.g. the shared-trip
  * leg of `can_dm()` in `s3a.13`). Same shape as `isFollowing` in
  * `lib/follows.ts`.
