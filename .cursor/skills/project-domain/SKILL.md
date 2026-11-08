@@ -24,6 +24,7 @@ Use these names consistently in code, schema, UI copy (when neutral), and Beads 
 | **Join request** | A request from a non-member Profile to join a `public` (or shared `unlisted`) Trip. Default = approval-required by the organizer. |
 | **Expense** | A shared cost on a trip (hotel, venue, transport, food). Money. Members-only. |
 | **Share** | A member's portion of an expense. Money. Members-only. |
+| **Settlement** | A record that one member paid another outside the app ("mark as paid"). Append-only: a void is a new reversing row. Either party records or voids it. Money. Members-only. |
 | **Payout** | A money movement: member → organizer, member → venue, or organizer → venue. Money. Members-only. |
 | **Venue** | A vendor that may eventually receive payments directly. |
 
@@ -105,6 +106,7 @@ Until tables exist, a rough mapping:
 - `join_requests` → pending requests from non-members to join `public` / `unlisted` trips.
 - `expenses` → costs attached to a trip with a payer. **Members-only RLS.**
 - `expense_shares` → per-member shares of an expense. **Members-only RLS.**
+- `settlements` → append-only records of members paying each other outside the app; a void is a reversing row. **Members-only RLS.**
 - `payouts` → recorded money movements. **Members-only RLS.**
 - `posts` → in-trip posts; carries the `pending_media` / `pending_review` / `published` / `rejected` state.
 - `post_images` → image rows attached to posts; carries the `pending_review` / `approved` / `rejected` state and the moderation decision reference.

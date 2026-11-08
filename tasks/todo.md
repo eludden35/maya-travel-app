@@ -837,3 +837,57 @@ On Next 16.2.4, a production build sometimes never updates the page after a Serv
 
 - **Two copies of `sharp`:** Next 16.4 brings `sharp` 0.35.5 as an optional dependency, next to the app's 0.34.5 for `lib/images.ts`, which no route uses yet. Moving the app to 0.35 would drop one copy, but it touches the EXIF-strip path, so it's a change of its own.
 - **Large-page coverage (from the Bead):** a seed trip with 25 or more notes, and an e2e that posts there, need PR #8's notes. #8's posts e2e can cover it once #8 is rebased onto this.
+
+---
+
+# tripplanner-2o5.3: settlements, balances and the balance rule for leaving
+
+**Bead:** `tripplanner-2o5.3` (P1, epic `tripplanner-2o5`). **Status (2026-11-08):** PR open for the founder to merge. The Bead stays `in_progress` until it merges.
+
+## Goal
+
+Testers can add costs but can't see who owes whom or mark a debt as paid. This chunk adds the settlement ledger, each member's net balance, and the rule that nobody leaves, is removed from, or deletes a trip with money outstanding. The screens are `tripplanner-2o5.5`.
+
+## Founder decisions (test plan section 12, Q3)
+
+- Either party records a settlement, and either party voids one. Nobody else in the trip can, the organizer included.
+- No confirmation: it counts as soon as it's recorded.
+- Any amount from 0.01 to the maximum, so partial payments and overpayments record as entered.
+- `trip_balances` returns one net amount per member. `simplifyDebts` was already in `lib/money.ts` (`2o5.4`), so suggested payments needed no new code.
+
+## Changed
+
+- **Migration** `20261108151603_settlements.sql`: the `settlements` table with member-only RLS, `record_settlement`, `void_settlement`, `trip_balances`, the `settlement_write` rate limit (60 an hour), and `private.trip_departure_blocker` redefined to return `unsettled_balance` for a nonzero net.
+- **A void** is a new row: the same amount paid back the other way, with `reverses_id` on the settlement it reverses. A composite foreign key holds it to the original's trip, parties and amount; a unique key allows one void per settlement; a trigger refuses a void of a void.
+- **Append-only** holds against everyone. Clients and the secret key have no UPDATE or DELETE, and a trigger refuses both for the owner and the security definer RPCs too. Rows go only by the cascade from a deleted trip.
+- **Currency:** a trip with a settlement and no expenses can't change currency either. `private.trips_keep_currency_with_expenses()` now checks both tables.
+- **`private.trip_nets`** is the one balance formula. It filters deleted expenses itself, because the owner bypasses RLS.
+- **App:** `lib/settlements.ts` (types, reads, RPC wrappers for `2o5.5`), `unsettled_balance` in the three result unions in `lib/trips.ts`, `SETTLEMENT_WRITE` in `lib/rate-limit.ts`, and refusal copy with the actual amounts in `app/_actions/unsettled-balance-copy.ts`, as S7 step 1 expects. The Server Actions read the balances only after a refusal.
+- **Existing pgTAP:** three assertions in `011-expenses` and `011-trip-invites` left or deleted a trip with money outstanding, which the rule now refuses, so those members settle up first.
+
+## Evidence (2026-11-08)
+
+- **Checks:** `supabase test db` from a clean reset (17 files, 680 tests, 160 of them new), `pnpm typecheck`, `pnpm lint`, `pnpm test` (241 tests), `pnpm build`, and all 4 e2e specs on the production build.
+- **Money-privacy matrix** on private, unlisted and public trips: a stranger, a follower of two members, someone in another trip with the members, a viewer who can open the trip, and someone who left all read 0 settlements and 0 balances; anon is refused outright.
+- **Races, on two real connections** (pgTAP is single-session). The second connection waited about 1.4s on the first's lock each time, then got the right status:
+
+  | First connection, held open | Second connection | Result |
+  | --- | --- | --- |
+  | Void a settlement | Void it too | `already_voided`, one void row |
+  | Record a payment | The payer leaves | `unsettled_balance` |
+  | A party leaves at zero | Record a payment with them | `not_a_member` |
+  | Record a payment | Delete the trip | `unsettled_balance` |
+  | Void a payment | The payer leaves at zero | `unsettled_balance` |
+  | A party leaves at zero | Void their payment | `member_left` |
+
+- **Mutation pass:** 24 deliberate breakages, one at a time on the local database (no membership check, wrong sign, deleted expenses counted, append-only trigger dropped, policy opened to public trips, and so on). The suite caught all 24 and was green again after each was undone.
+- **Signed-in smoke, production build, throwaway spec, seed accounts:** with a $90.00 expense split between Alice and Bob, the real dialogs said:
+  - Bob, Leave: "You owe $45.00 on this trip. Settle up and mark it as paid, then you can leave."
+  - Alice, Remove: "Bob Okafor owes $45.00 on this trip. Once they've settled up and it's marked as paid, you can remove them."
+  - Alice, Delete: "Not everyone is settled up yet: you're owed $45.00 and Bob Okafor owes $45.00. Once every balance is settled and marked as paid, you can delete the trip."
+  - Bob, after overpaying by $10.00: "You're owed $10.00 on this trip. Once you're paid back and it's marked as paid, you can leave."
+  - After the overpayment was voided and $45.00 was recorded, Bob left and the trip was gone for them.
+
+## Follow-ups
+
+- **`tripplanner-2o5.5` (screens):** the hand-over is on the Bead. S5 and S7 through the real UI belong in that chunk's e2e, which is why the smoke above wasn't committed.
