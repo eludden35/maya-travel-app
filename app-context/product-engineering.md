@@ -35,6 +35,7 @@ Concise developer-facing complement to [`initial-app-idea.md`](initial-app-idea.
 | **Join request** | A request from a non-member Profile to join a `public` (or shared `unlisted`) Trip. Default = approval-required by the organizer. |
 | **Expense** | A shared cost on a trip (hotel, venue, transport, food). Money. Members-only. |
 | **Share** | A member's portion of an expense. Money. Members-only. |
+| **Settlement** | A record that one member paid another outside the app ("mark as paid"). Append-only: a void is a new reversing row. Either party records or voids it. Money. Members-only. |
 | **Payout** | A money movement: member → organizer, member → venue, or organizer → venue. Money. Members-only. |
 | **Venue** | A vendor that may eventually receive payments directly. |
 | **Post** | A piece of in-trip content (text + optional photos) authored by a Member, attached to a Trip. State: `pending_media` \| `pending_review` \| `published` \| `rejected`. Inherits the parent Trip's visibility for its readable audience. |

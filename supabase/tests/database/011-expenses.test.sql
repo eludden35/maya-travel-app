@@ -5,7 +5,7 @@
 -- expense or the organizer may edit or delete it; a delete is soft; an
 -- expense freezes once someone on it has left the trip.
 begin;
-select plan(140);
+select plan(142);
 
 select tests.create_user('alice');  -- organizer
 select tests.create_user('bob');    -- member
@@ -536,6 +536,14 @@ select is(public.delete_expense(tests.id('Taxi')),
 
 reset role;
 select tests.authenticate_as('carol');
+select is(
+  (select status from public.record_settlement(
+     tests.id('Ledger trip'), tests.id('carol'), tests.id('alice'),
+     -(select b.net from public.trip_balances(tests.id('Ledger trip')) as b
+       where b.member_id = tests.id('carol')))),
+  'ok',
+  'carol settles up, since nobody leaves with a balance (tripplanner-2o5.3)'
+);
 select is(public.leave_trip(tests.id('Ledger trip')), 'ok', 'carol leaves the trip');
 select is(
   (select count(*)::int from public.expenses where trip_id = tests.id('Ledger trip')),
@@ -771,6 +779,15 @@ select lives_ok(
   'a trip without expenses can still change currency'
 );
 
+select tests.authenticate_as('bob');
+select is(
+  (select status from public.record_settlement(
+     tests.id('Public ledger'), tests.id('bob'), tests.id('alice'), 2500)),
+  'ok',
+  'bob settles up, since a trip is deleted only at zero (tripplanner-2o5.3)'
+);
+
+reset role;
 select tests.authenticate_as('alice');
 select is(public.delete_trip(tests.id('Public ledger')),
   'ok', 'the organizer can delete a trip that has expenses');

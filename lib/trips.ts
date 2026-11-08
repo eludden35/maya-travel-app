@@ -78,7 +78,13 @@ export type DeleteTripResult =
   | { ok: true }
   | {
       ok: false;
-      error: "not_found" | "forbidden" | "rate_limited" | "unauthorized" | "unknown";
+      error:
+        | "not_found"
+        | "forbidden"
+        | "unsettled_balance"
+        | "rate_limited"
+        | "unauthorized"
+        | "unknown";
     };
 
 export type LeaveTripResult =
@@ -88,6 +94,7 @@ export type LeaveTripResult =
       error:
         | "not_found"
         | "organizer_cannot_leave"
+        | "unsettled_balance"
         | "rate_limited"
         | "unauthorized"
         | "unknown";
@@ -102,6 +109,7 @@ export type RemoveTripMemberResult =
         | "forbidden"
         | "not_a_member"
         | "cannot_remove_organizer"
+        | "unsettled_balance"
         | "rate_limited"
         | "unauthorized"
         | "unknown";
@@ -362,12 +370,14 @@ const UPDATE_TRIP_ERRORS: readonly Failure<UpdateTripResult>[] = [
 const DELETE_TRIP_ERRORS: readonly Failure<DeleteTripResult>[] = [
   "not_found",
   "forbidden",
+  "unsettled_balance",
   "rate_limited",
   "unauthorized",
 ];
 const LEAVE_TRIP_ERRORS: readonly Failure<LeaveTripResult>[] = [
   "not_found",
   "organizer_cannot_leave",
+  "unsettled_balance",
   "rate_limited",
   "unauthorized",
 ];
@@ -376,6 +386,7 @@ const REMOVE_TRIP_MEMBER_ERRORS: readonly Failure<RemoveTripMemberResult>[] = [
   "forbidden",
   "not_a_member",
   "cannot_remove_organizer",
+  "unsettled_balance",
   "rate_limited",
   "unauthorized",
 ];

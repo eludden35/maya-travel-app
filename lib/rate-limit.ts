@@ -50,6 +50,8 @@ export const RATE_LIMITS = {
   // Charged inside create_expense, update_expense and delete_expense
   // (tripplanner-2o5.2).
   EXPENSE_WRITE: { surface: "expense_write" },
+  // Charged inside record_settlement and void_settlement (tripplanner-2o5.3).
+  SETTLEMENT_WRITE: { surface: "settlement_write" },
   TRIP_INVITE: { surface: "trip_invite" },
   TRIP_JOIN: { surface: "trip_join" },
 } as const;
