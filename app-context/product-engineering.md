@@ -187,6 +187,8 @@ Direction-level identity (closes `tripplanner-tw8`). Concrete hex values and fin
 - **Oversized money numerals (signature motif).** Totals, balances, and "you owe / you're owed" use oversized tabular-figure type with smaller labels around them. Money is the protagonist; the rest of the screen recedes. Instantly recognizable in screenshots.
 - **Anchored bottom action bar.** Primary action lives in a thumb-reach bottom bar with `safe-area-inset-*` padding. Mobile-first, one-handed.
 - **Layered warm surfaces.** Foreground cards sit over a soft warm background field; warmth comes from layering, not from heavy borders or default Material shadows.
+- **Receipt ledger (money mode, added 2026-11-08, `tripplanner-2o5.5`).** Money tables read as till receipts: a scalloped bottom edge (`receipt-edge` in `app/globals.css`), dotted leaders from a name to its amount, JetBrains Mono for the amounts. Why: money mode needs a card shape of its own, so it never blends with the postcard-like notes on the same page. It carries the "receipt-like; tabular alignment" card affordance from the UI/UX skill.
+- **Ink stamps (money mode, added 2026-11-08, `tripplanner-2o5.5`).** "Settled" and "Voided" are small, slightly rotated stamps, in the family of the "in the mail" postmark. Why: a status has to read at a glance without a green tick or a red badge. The word is always the signal; rotation and color only reinforce it.
 
 ### Color (direction-level samples — not final brand values)
 

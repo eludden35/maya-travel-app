@@ -1,3 +1,36 @@
+# tripplanner-2o5.5: expense, balance and mark-as-paid screens
+
+**Bead:** [`tripplanner-2o5.5`](#) (epic [`tripplanner-2o5`](#); blocks `2o5.13`). **Test plan:** S4, S5 and S7 in [`docs/uat/uat-1-test-plan.md`](../docs/uat/uat-1-test-plan.md).
+
+## Founder decisions (2026-11-08)
+
+| # | Question | Answer |
+|---|---|---|
+| D1 | How do former members read in the money history? | Real name, marked "(left)", from a new members-only RPC, `get_trip_former_members`. |
+| D2 | Where does the money sit on a trip page? | Above who's going. |
+
+## Calls made without asking
+
+- The UI says "cost", as the trip form already did. The test plan records the wording.
+- A frozen cost hides Edit and Delete and says why, so S7-N5 now reads that way.
+- Costs and payments show the newest five; the rest fold behind "Show N older".
+
+## Done
+
+- [x] `get_trip_former_members` with pgTAP (`016`), as anon, members, the person who left, a stranger and a follower.
+- [x] `lib/trip-money.ts` and `lib/expense-fields.ts`, pure, with unit tests.
+- [x] `TripMoney`, `ExpenseSheet`, `PaymentSheet`, `MoneySheet`; members only.
+- [x] Leave, remove and delete refusals link to Settle up.
+- [x] `e2e/money.spec.ts`: S4, S5 and S7 on phones, a 36-cost ledger, and a non-member on a public trip.
+
+## Review
+
+Proof: typecheck, lint, unit tests, `check:secrets`, `next build`, `supabase test db` and all seven e2e tests on a production build. Screens checked at 412 and 360 px; no horizontal overflow at 320 px.
+
+Not in this chunk: home totals (S5 step 3) are `tripplanner-2o5.9`.
+
+---
+
 # tripplanner-2o5.6: text posts in a trip, Report, and the founder's reports page
 
 **Bead:** [`tripplanner-2o5.6`](#) (epic [`tripplanner-2o5`](#); blocks `2o5.10`, `2o5.13`, `s3a.7`, `s3a.15`). **Test plan:** S6, PV6 and §12 Q1 in [`docs/uat/uat-1-test-plan.md`](../docs/uat/uat-1-test-plan.md). **Status:** the founder approved D1–D4 and the defaults on 2026-11-03. Built and proven on the local stack; [PR #8](https://github.com/eludden35/maya-travel-app/pull/8) is waiting for the founder to merge.
