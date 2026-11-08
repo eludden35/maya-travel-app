@@ -5,7 +5,7 @@
 -- with anyone in the trip stops a join and looks like a dead link (Q9); only
 -- the organizer makes or turns off links (Q10); one live link per trip.
 begin;
-select plan(103);
+select plan(104);
 
 select tests.create_user('alice');                                                -- organizer
 select tests.create_user('bob');                                                  -- member
@@ -647,6 +647,15 @@ select is(
 -- Deleting a trip takes its links with it
 -- ----------------------------------------------------------------------------
 
+-- A trip is deleted only when every balance is zero (tripplanner-2o5.3), and
+-- bob still owes alice for the hotel.
+select tests.authenticate_as('bob');
+select is(
+  (select status from public.record_settlement(
+     tests.id('Porto'), tests.id('bob'), tests.id('alice'), 15000)),
+  'ok', 'setup: bob settles up');
+
+reset role;
 select tests.authenticate_as('alice');
 select is(public.delete_trip(tests.id('Porto')), 'ok', 'a trip with links can be deleted');
 

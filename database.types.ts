@@ -524,6 +524,75 @@ export type Database = {
           },
         ]
       }
+      settlements: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          from_id: string
+          id: string
+          reverses_id: string | null
+          to_id: string
+          trip_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by: string
+          from_id: string
+          id?: string
+          reverses_id?: string | null
+          to_id: string
+          trip_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          from_id?: string
+          id?: string
+          reverses_id?: string | null
+          to_id?: string
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "settlements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "settlements_from_id_fkey"
+            columns: ["from_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "settlements_reverses_fkey"
+            columns: ["reverses_id", "trip_id", "to_id", "from_id", "amount"]
+            isOneToOne: false
+            referencedRelation: "settlements"
+            referencedColumns: ["id", "trip_id", "from_id", "to_id", "amount"]
+          },
+          {
+            foreignKeyName: "settlements_to_id_fkey"
+            columns: ["to_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "settlements_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tos_acceptances: {
         Row: {
           accepted_at: string
@@ -905,6 +974,18 @@ export type Database = {
           trip_name: string
         }[]
       }
+      record_settlement: {
+        Args: {
+          p_amount: number
+          p_from_id: string
+          p_to_id: string
+          p_trip_id: string
+        }
+        Returns: {
+          settlement_id: string
+          status: string
+        }[]
+      }
       remove_trip_member: {
         Args: { p_profile_id: string; p_trip_id: string }
         Returns: string
@@ -914,6 +995,14 @@ export type Database = {
         Returns: string
       }
       revoke_trip_invite: { Args: { p_invite_id: string }; Returns: string }
+      trip_balances: {
+        Args: { p_trip_id: string }
+        Returns: {
+          is_member: boolean
+          member_id: string
+          net: number
+        }[]
+      }
       update_expense: {
         Args: {
           p_amount: number
@@ -936,6 +1025,7 @@ export type Database = {
         }
         Returns: string
       }
+      void_settlement: { Args: { p_settlement_id: string }; Returns: string }
     }
     Enums: {
       expense_split: "equal" | "exact"
