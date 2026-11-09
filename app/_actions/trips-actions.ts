@@ -50,7 +50,11 @@ export type TripFormState = {
   error: { field: TripFormField | null; message: string } | null;
 };
 
-export type ConfirmState = { error: string | null };
+export type ConfirmState = {
+  error: string | null;
+  /** A balance caused the refusal, so the dialog links to Settle up. */
+  settle?: boolean;
+};
 
 export async function createTripAction(
   _previous: TripFormState,
@@ -92,12 +96,9 @@ export async function deleteTripAction(
   }
   const result = await deleteTrip(tripId);
   if (!result.ok) {
-    return {
-      error:
-        result.error === "unsettled_balance"
-          ? await deleteBlockedMessage(tripId)
-          : CONFIRM_COPY[result.error],
-    };
+    return result.error === "unsettled_balance"
+      ? { error: await deleteBlockedMessage(tripId), settle: true }
+      : { error: CONFIRM_COPY[result.error] };
   }
   revalidatePath("/");
   redirect("/");
@@ -111,12 +112,9 @@ export async function leaveTripAction(
   }
   const result = await leaveTrip(tripId);
   if (!result.ok) {
-    return {
-      error:
-        result.error === "unsettled_balance"
-          ? await leaveBlockedMessage(tripId)
-          : CONFIRM_COPY[result.error],
-    };
+    return result.error === "unsettled_balance"
+      ? { error: await leaveBlockedMessage(tripId), settle: true }
+      : { error: CONFIRM_COPY[result.error] };
   }
   revalidatePath("/");
   redirect("/");
@@ -132,12 +130,9 @@ export async function removeTripMemberAction(
   const result = await removeTripMember(tripId, profileId);
   // Someone who already left is gone either way.
   if (!result.ok && result.error !== "not_a_member") {
-    return {
-      error:
-        result.error === "unsettled_balance"
-          ? await removeBlockedMessage(tripId, profileId)
-          : CONFIRM_COPY[result.error],
-    };
+    return result.error === "unsettled_balance"
+      ? { error: await removeBlockedMessage(tripId, profileId), settle: true }
+      : { error: CONFIRM_COPY[result.error] };
   }
   revalidatePath("/");
   revalidatePath(`/trips/${tripId}`);

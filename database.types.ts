@@ -925,6 +925,13 @@ export type Database = {
           trip_name: string
         }[]
       }
+      get_trip_former_members: {
+        Args: { p_trip_id: string }
+        Returns: {
+          display_name: string
+          profile_id: string
+        }[]
+      }
       get_trip_members: {
         Args: { p_trip_id: string }
         Returns: {

@@ -156,6 +156,7 @@ Check IDs (for example `S5-N2`) are what defect reports cite. "Refused" means th
 
 - **Who:** A (ORG), B and C, in a USD trip. **Routes:** `/trips/[id]`
 - **Preconditions:** S3 done; exactly three members and no expenses.
+- **Wording:** the app calls an expense a **cost**: "Add a cost", on the trip page's Money section. Former members show by name, marked "(left)" (founder decision, 2026-11-08, `tripplanner-2o5.5`).
 - **Money cases:** leftover cents (steps 1–2, S4-N2); an exact split that doesn't add up (steps 4–5); edit and delete (steps 3, 7, 8). Mark as paid and void are in S5.
 
 | # | Step | Expected result |
@@ -197,8 +198,8 @@ Check IDs (for example `S5-N2`) are what defect reports cite. "Refused" means th
 | 3 | Each member opens home | Real totals that match the trip ("You owe $14.00" for B), not a hardcoded "$0" |
 | 4 | B marks the $14.00 to A as paid | Recorded with the date and who marked it; B is at $0.00, A at +$34.00 |
 | 5 | C marks the $34.00 to A as paid | Every balance $0.00; the trip reads as settled |
-| 6 | Void B's payment | A reversing entry appears; B owes $14.00 again; both entries stay in the history |
-| 7 | B marks it paid again | Settled again; the history reads paid, voided, paid |
+| 6 | Void B's payment | The payment is marked "Voided", with who voided it and when; B owes $14.00 again; it stays in the history and no separate payment appears |
+| 7 | B marks it paid again | Settled again; the history shows the voided payment and the new one |
 
 | Check | Expected result |
 |---|---|
@@ -253,7 +254,7 @@ Check IDs (for example `S5-N2`) are what defect reports cite. "Refused" means th
 | S7-N2 The taxi C paid before leaving | Still in the history; balances still sum to $0.00 |
 | S7-N3 A looks for "Leave trip" | None; the page says the organizer stays until the trip is deleted |
 | S7-N4 A deletes the trip while B still owes $14.00 | Refused: says what to settle first; nothing is deleted |
-| S7-N5 After C leaves, A tries to edit or delete an expense C was part of | Refused: someone on it has left the trip; nothing changes |
+| S7-N5 After C leaves, A looks for Edit or Delete on an expense C was part of | None; the expense says someone on it has left the trip, so it stays as it is |
 
 ### S8. Settings, block and unblock, second device
 

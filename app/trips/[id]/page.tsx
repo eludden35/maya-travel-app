@@ -10,7 +10,9 @@ import {
 } from "@/app/_actions/trips-actions";
 import { ConfirmAction } from "@/app/trips/_components/confirm-action";
 import { InvitePanel, type PanelInvite } from "@/app/trips/_components/invite-panel";
+import { TripMoney, TripMoneySkeleton } from "@/app/trips/_components/trip-money";
 import { TripNotes, TripNotesSkeleton } from "@/app/trips/_components/trip-notes";
+import { isCurrencyCode } from "@/lib/money";
 import { requireProfileFor } from "@/lib/profiles";
 import { formatTripDates, formatTripLength } from "@/lib/trip-dates";
 import {
@@ -45,8 +47,8 @@ const DESTRUCTIVE_BUTTON =
 /**
  * A trip's page (Bead tripplanner-718): its details and who's going. Later
  * beads add sections here: invites (tripplanner-2o5.1), trip notes (2o5.6,
- * `TripNotes`, members only, streamed in after who's going), costs and
- * balances (2o5.2, 2o5.3, 2o5.5).
+ * `TripNotes`, members only, streamed in after who's going) and the money
+ * (2o5.5, `TripMoney`, members only on every visibility, above who's going).
  *
  * - Signed out: sign-in first, before anything loads (test plan S2-N2).
  * - Can't see the trip, or it doesn't exist: the same "not found" (S2-N3).
@@ -139,6 +141,18 @@ export default async function TripPage({
               {trip.description}
             </p>
           </section>
+        ) : null}
+
+        {isMember && isCurrencyCode(trip.currency) ? (
+          <Suspense fallback={<TripMoneySkeleton />}>
+            <TripMoney
+              tripId={trip.id}
+              currency={trip.currency}
+              viewerId={profile.id}
+              organizerId={trip.organizer_id}
+              members={members}
+            />
+          </Suspense>
         ) : null}
 
         {isMember ? (

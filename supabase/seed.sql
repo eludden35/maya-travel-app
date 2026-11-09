@@ -7,7 +7,8 @@
 --
 --   alice@example.com  onboarded; organizes "Lisbon long weekend" (private),
 --                      "Joshua Tree climbing" (public) and "Amalfi coast
---                      reunion" (private, 26 trip notes)
+--                      reunion" (private, 26 trip notes, 36 costs and 8
+--                      payments)
 --   bob@example.com    onboarded; member of the Lisbon and Amalfi trips;
 --                      follows alice
 --   carol@example.com  signed up but not onboarded, to try onboarding
@@ -132,3 +133,43 @@ select
   ])[1 + (n - 1) % 8]),
   now() - make_interval(hours => n * 5)
 from generate_series(1, 26) as n;
+
+-- tripplanner-2o5.5: the same trip with a realistic amount of money on it, so
+-- the end-to-end tests keep a long ledger under test on a production build.
+-- 36 costs, alternating payers, mostly split evenly. Bob's payments below
+-- leave him with something still to settle.
+do $$
+declare
+  v_trip  uuid := 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  v_alice uuid := '11111111-1111-4111-8111-111111111111';
+  v_bob   uuid := '22222222-2222-4222-8222-222222222222';
+  v_id    uuid;
+  v_payer uuid;
+  v_cost  bigint;
+begin
+  for n in 1..36 loop
+    v_payer := case when n % 3 = 0 then v_bob else v_alice end;
+    v_cost := 1200 + n * 437;
+    insert into public.expenses (trip_id, payer_id, description, amount, split, created_by, created_at)
+    values (
+      v_trip, v_payer,
+      format('%s, day %s', (array[
+        'Ferry to Positano', 'Villa groceries', 'Dinner at Da Adolfo',
+        'Boat to the beach', 'Scooter rental', 'Lemon tasting',
+        'Airport shuttle', 'Ravello concert', 'Gelato round'
+      ])[1 + (n - 1) % 9], 1 + (n - 1) % 7),
+      v_cost, 'equal', v_payer, now() - make_interval(hours => n * 4)
+    )
+    returning id into v_id;
+
+    insert into public.expense_shares (expense_id, trip_id, member_id, amount)
+    values
+      (v_id, v_trip, v_payer, v_cost - v_cost / 2),
+      (v_id, v_trip, case when v_payer = v_alice then v_bob else v_alice end, v_cost / 2);
+  end loop;
+
+  insert into public.settlements (trip_id, from_id, to_id, amount, created_by, created_at)
+  select v_trip, v_bob, v_alice, 2000 + n * 150, v_bob, now() - make_interval(hours => n * 9)
+  from generate_series(1, 8) as n;
+end;
+$$;
